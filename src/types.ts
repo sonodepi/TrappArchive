@@ -20,8 +20,17 @@ export interface Album {
   createdAt: number;
 }
 
-export interface WorkspaceState {
-  lyricsDraft: string;
+export interface DraftProject {
+  id: string;
+  title: string;
+  lyrics: string;
+  ownerLyrics?: string;
+  collaboratorLyrics?: string;
+  isCoopMode?: boolean;
+  ownerReady?: boolean;
+  collabReady?: boolean;
   beatUrl: string;
+  shareCode: string;
+  updatedAt: number;
 }
 

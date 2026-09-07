@@ -1,12 +1,22 @@
 import React, { useState, useMemo } from 'react';
 import { Track } from '../types';
 import { formatDuration } from '../utils';
-import { Play, Mic2, Disc3, ArrowDownAZ, ArrowUpZA, Clock, CalendarDays, ArrowUp, ArrowDown } from 'lucide-react';
+import { Play, Mic2, Disc3, ArrowDownAZ, ArrowUpZA, Clock, CalendarDays, ArrowUp, ArrowDown, Pencil, Trash2 } from 'lucide-react';
 
 type SortBy = 'title' | 'date' | 'duration';
 type SortDir = 'asc' | 'desc';
 
-export function Library({ tracks, onPlay }: { tracks: Track[], onPlay: (t: Track) => void }) {
+export function Library({ 
+  tracks, 
+  onPlay,
+  onEdit,
+  onDelete
+}: { 
+  tracks: Track[], 
+  onPlay: (t: Track) => void,
+  onEdit?: (t: Track) => void,
+  onDelete?: (id: string) => void
+}) {
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
 
@@ -88,6 +98,30 @@ export function Library({ tracks, onPlay }: { tracks: Track[], onPlay: (t: Track
                     <Play className="ml-1 w-6 h-6" />
                   </button>
                 </div>
+                
+                <div className="absolute top-2 right-2 flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onEdit) onEdit(t);
+                    }}
+                    className="p-1.5 bg-black/70 hover:bg-blue-600/80 text-white rounded-md backdrop-blur-md transition-colors"
+                  >
+                    <Pencil size={14} />
+                  </button>
+                  <button 
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onDelete && window.confirm('Are you sure you want to delete this track?')) {
+                        onDelete(t.id);
+                      }
+                    }}
+                    className="p-1.5 bg-black/70 hover:bg-red-500/80 text-white rounded-md backdrop-blur-md transition-colors"
+                  >
+                    <Trash2 size={14} />
+                  </button>
+                </div>
+
                 <Disc3 className="w-12 h-12 text-slate-700" />
               </div>
               

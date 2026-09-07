@@ -1,9 +1,21 @@
-import React, { useState } from 'react';
-import { Track } from '../types';
-import { Save, Folder, Mic, AlertCircle, Plus, Minus } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { Track, DraftProject } from '../types';
+import { Save, Folder, Mic, AlertCircle, Plus, Minus, Trash2 } from 'lucide-react';
 
-export function TrackEditor({ onSave }: { onSave: (t: Track) => void }) {
-  const [track, setTrack] = useState<Track>({
+export function TrackEditor({ 
+  onSave, 
+  editTrack, 
+  initialDraft,
+  onUpdate, 
+  onDelete 
+}: { 
+  onSave: (t: Track) => void,
+  editTrack?: Track | null,
+  initialDraft?: DraftProject | null,
+  onUpdate?: (t: Track) => void,
+  onDelete?: (id: string) => void
+}) {
+  const defaultTrack = {
     id: crypto.randomUUID(),
     title: '',
     producer: '',
@@ -13,7 +25,25 @@ export function TrackEditor({ onSave }: { onSave: (t: Track) => void }) {
     audioFilePath: '',
     durationMs: 0,
     createdAt: Date.now()
-  });
+  };
+
+  const [track, setTrack] = useState<Track>(defaultTrack);
+
+  useEffect(() => {
+    if (editTrack) {
+      setTrack(editTrack);
+    } else if (initialDraft) {
+      setTrack({
+        ...defaultTrack,
+        id: crypto.randomUUID(),
+        title: initialDraft.title !== 'Untitled Draft' ? initialDraft.title : '',
+        lyrics: initialDraft.lyrics,
+        audioFilePath: initialDraft.beatUrl
+      });
+    } else {
+      setTrack({ ...defaultTrack, id: crypto.randomUUID() });
+    }
+  }, [editTrack, initialDraft]);
 
   const [isTranscribing, setIsTranscribing] = useState(false);
 
@@ -189,13 +219,34 @@ export function TrackEditor({ onSave }: { onSave: (t: Track) => void }) {
             />
           </div>
 
-          <button 
-            onClick={handleSave}
-            className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-[0_0_20px_rgba(37,99,235,0.3)] border border-blue-400/50"
-          >
-            <Save className="w-5 h-5" />
-            Save Track to Library
-          </button>
+          <div className="flex flex-col gap-3">
+            <button 
+              onClick={() => {
+                if (editTrack && onUpdate) {
+                  onUpdate(track);
+                } else {
+                  handleSave();
+                }
+              }}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-medium py-3.5 rounded-xl flex items-center justify-center gap-2 transition-transform active:scale-[0.98] shadow-[0_0_20px_rgba(37,99,235,0.3)] border border-blue-400/50"
+            >
+              <Save className="w-5 h-5" />
+              {editTrack ? 'Update Track' : 'Save Track to Library'}
+            </button>
+            {editTrack && onDelete && (
+              <button 
+                onClick={() => {
+                  if (window.confirm('Are you sure you want to delete this track?')) {
+                    onDelete(track.id);
+                  }
+                }}
+                className="w-full bg-red-600/10 hover:bg-red-500 hover:text-white text-red-500 font-medium py-3 rounded-xl flex items-center justify-center gap-2 transition-colors border border-red-500/20 hover:border-red-500/50"
+              >
+                <Trash2 className="w-4 h-4" />
+                Delete Track
+              </button>
+            )}
+          </div>
         </div>
 
       </div>
