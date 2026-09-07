@@ -20,6 +20,8 @@
         "./*"
       ]
     },
+    "types": ["vite/client", "vite-plugin-pwa/client"],
+    "resolveJsonModule": true,
     "allowImportingTsExtensions": true,
     "noEmit": true
   }

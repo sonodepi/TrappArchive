@@ -8,6 +8,8 @@ export interface Track {
   audioFilePath: string;
   durationMs: number; // For sorting by duration
   createdAt: number; // For sorting by date
+  bpm?: number;
+  key?: string;
 }
 
 export interface Album {
@@ -32,5 +34,7 @@ export interface DraftProject {
   beatUrl: string;
   shareCode: string;
   updatedAt: number;
+  bpm?: number;
+  key?: string;
 }
 

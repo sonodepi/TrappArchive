@@ -1,16 +1,26 @@
 <!doctype html>
-<html lang="en">
+<html lang="it">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>TrackStudio</title>
-    <meta name="description" content="Desktop-style local music management and playback app prototype." />
-    <meta property="og:title" content="TrackStudio" />
-    <meta property="og:description" content="Desktop-style local music management and playback app prototype." />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+    <title>TrappArchive</title>
+    <meta name="description" content="Catalogo musicale personale, gestione tracce, album, testi e bozze collaborative scaricabile e utilizzabile al 100% offline (PWA)." />
+    <meta property="og:title" content="TrappArchive" />
+    <meta property="og:description" content="Catalogo musicale personale, gestione tracce, album, testi e bozze collaborative scaricabile e utilizzabile al 100% offline (PWA)." />
     <meta property="og:type" content="website" />
     <meta name="twitter:card" content="summary_large_image" />
+
+    <!-- PWA Settings & Web App Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <meta name="theme-color" content="#060b19" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="TrappArchive" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <link rel="icon" type="image/svg+xml" href="/icon-192.svg" />
   </head>
-  <body>
+  <body class="bg-[#060b19] text-slate-200 antialiased select-none overflow-x-hidden">
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

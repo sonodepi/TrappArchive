@@ -1,0 +1,17 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 192 192" width="192" height="192">
+  <!-- Dark Blue Background matching #060b19 -->
+  <rect width="192" height="192" rx="36" fill="#060b19"/>
+  <!-- Subtle circular groove outer glow -->
+  <circle cx="96" cy="96" r="76" fill="#1e293b" stroke="#2563eb" stroke-width="2"/>
+  <!-- Vinyl disc outer edge -->
+  <circle cx="96" cy="96" r="70" fill="#0b1120" stroke="#334155" stroke-width="2"/>
+  <!-- Grooves -->
+  <circle cx="96" cy="96" r="58" fill="none" stroke="#1e293b" stroke-width="2"/>
+  <circle cx="96" cy="96" r="46" fill="none" stroke="#1e293b" stroke-width="1.5"/>
+  <circle cx="96" cy="96" r="36" fill="none" stroke="#1e293b" stroke-width="1"/>
+  <!-- Center Vinyl Label (Blue) -->
+  <circle cx="96" cy="96" r="26" fill="#2563eb"/>
+  <!-- Center spindle hole -->
+  <circle cx="96" cy="96" r="8" fill="#ffffff"/>
+  <circle cx="96" cy="96" r="4" fill="#060b19"/>
+</svg>

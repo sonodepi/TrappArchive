@@ -5,13 +5,16 @@
 
 import React, { useState, useEffect } from 'react';
 import { Track, Album, DraftProject } from './types';
-import { Sidebar } from './components/Sidebar';
+import { Sidebar, BottomNav } from './components/Sidebar';
 import { Player } from './components/Player';
 import { Library } from './components/Library';
 import { TrackEditor } from './components/TrackEditor';
 import { WorkingOn } from './components/WorkingOn';
 import { Albums } from './components/Albums';
 import { ExportSection } from './components/ExportSection';
+import { PWAInstallButton } from './components/PWAInstallButton';
+import { OfflineIndicator } from './components/OfflineIndicator';
+import { Disc } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('working-on');
@@ -25,30 +28,72 @@ export default function App() {
   const [editingTrack, setEditingTrack] = useState<Track | null>(null);
   const [draftToTrack, setDraftToTrack] = useState<DraftProject | null>(null);
 
-  // Load from LocalStorage on mount
+  // One-time Migration from trackstudio_ to trapparchive_ keys
   useEffect(() => {
-    const savedTracks = localStorage.getItem('trackstudio_tracks');
-    const savedAlbums = localStorage.getItem('trackstudio_albums');
-    const savedDrafts = localStorage.getItem('trackstudio_drafts');
+    try {
+      const isMigrated = localStorage.getItem('trapparchive_migrated');
+      if (isMigrated !== 'true') {
+        const oldTracks = localStorage.getItem('trackstudio_tracks');
+        const oldAlbums = localStorage.getItem('trackstudio_albums');
+        const oldDrafts = localStorage.getItem('trackstudio_drafts');
 
-    if (savedTracks) setTracks(JSON.parse(savedTracks));
-    if (savedAlbums) setAlbums(JSON.parse(savedAlbums));
-    if (savedDrafts) setDrafts(JSON.parse(savedDrafts));
+        if (oldTracks && !localStorage.getItem('trapparchive_tracks')) {
+          localStorage.setItem('trapparchive_tracks', oldTracks);
+        }
+        if (oldAlbums && !localStorage.getItem('trapparchive_albums')) {
+          localStorage.setItem('trapparchive_albums', oldAlbums);
+        }
+        if (oldDrafts && !localStorage.getItem('trapparchive_drafts')) {
+          localStorage.setItem('trapparchive_drafts', oldDrafts);
+        }
+
+        // Clean up legacy keys
+        localStorage.removeItem('trackstudio_tracks');
+        localStorage.removeItem('trackstudio_albums');
+        localStorage.removeItem('trackstudio_drafts');
+        localStorage.setItem('trapparchive_migrated', 'true');
+      }
+    } catch (e) {
+      console.warn('Migration warning:', e);
+    }
   }, []);
 
-  // Save to LocalStorage on change
+  // Load from LocalStorage on mount
   useEffect(() => {
-    localStorage.setItem('trackstudio_tracks', JSON.stringify(tracks));
-    localStorage.setItem('trackstudio_albums', JSON.stringify(albums));
-    localStorage.setItem('trackstudio_drafts', JSON.stringify(drafts));
+    const savedTracks = localStorage.getItem('trapparchive_tracks');
+    const savedAlbums = localStorage.getItem('trapparchive_albums');
+    const savedDrafts = localStorage.getItem('trapparchive_drafts');
+
+    if (savedTracks) {
+      try { setTracks(JSON.parse(savedTracks)); } catch {}
+    }
+    if (savedAlbums) {
+      try { setAlbums(JSON.parse(savedAlbums)); } catch {}
+    }
+    if (savedDrafts) {
+      try { setDrafts(JSON.parse(savedDrafts)); } catch {}
+    }
+  }, []);
+
+  // Save to LocalStorage on change (Offline First Persistence)
+  useEffect(() => {
+    localStorage.setItem('trapparchive_tracks', JSON.stringify(tracks));
+    localStorage.setItem('trapparchive_albums', JSON.stringify(albums));
+    localStorage.setItem('trapparchive_drafts', JSON.stringify(drafts));
   }, [tracks, albums, drafts]);
 
-  // Sync across tabs for multi-window Cowork simulation
+  // Sync across browser tabs via StorageEvent
   useEffect(() => {
     const handleStorage = (e: StorageEvent) => {
-      if (e.key === 'trackstudio_drafts' && e.newValue) setDrafts(JSON.parse(e.newValue));
-      if (e.key === 'trackstudio_tracks' && e.newValue) setTracks(JSON.parse(e.newValue));
-      if (e.key === 'trackstudio_albums' && e.newValue) setAlbums(JSON.parse(e.newValue));
+      if (e.key === 'trapparchive_drafts' && e.newValue) {
+        try { setDrafts(JSON.parse(e.newValue)); } catch {}
+      }
+      if (e.key === 'trapparchive_tracks' && e.newValue) {
+        try { setTracks(JSON.parse(e.newValue)); } catch {}
+      }
+      if (e.key === 'trapparchive_albums' && e.newValue) {
+        try { setAlbums(JSON.parse(e.newValue)); } catch {}
+      }
     };
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
@@ -58,7 +103,7 @@ export default function App() {
     const trackToSave = {
       ...newTrack,
       createdAt: Date.now(),
-      durationMs: Math.floor(Math.random() * 180000) + 120000 // Mock duration 2-5 mins
+      durationMs: newTrack.durationMs || Math.floor(Math.random() * 180000) + 120000
     };
     setTracks(prev => [...prev, trackToSave]);
     setActiveTab('library');
@@ -96,14 +141,36 @@ export default function App() {
   };
 
   return (
-    <div className="flex h-screen bg-gradient-to-br from-[#060b19] to-black text-slate-200 font-sans overflow-hidden selection:bg-blue-500/30">
+    <div className="flex flex-col md:flex-row h-screen w-full bg-gradient-to-br from-[#060b19] to-black text-slate-200 font-sans overflow-hidden selection:bg-blue-500/30">
+      
+      {/* Desktop & Tablet Sidebar (w-64 on desktop >=1024px, w-16 on tablet 768-1023px, hidden on mobile <768px) */}
       <Sidebar 
         activeTab={activeTab} 
         setActiveTab={setActiveTab} 
       />
       
-      <main className="flex-1 flex flex-col relative min-w-0">
-        <div className="flex-1 overflow-y-auto custom-scrollbar relative">
+      {/* Main Content Area */}
+      <main className="flex-1 flex flex-col relative min-w-0 min-h-0 overflow-hidden">
+        
+        {/* Mobile-Only Top Brand & Install Header */}
+        <header className="md:hidden flex items-center justify-between px-4 py-2.5 bg-[#03060d] border-b border-slate-900/80 shrink-0 z-10">
+          <div className="flex items-center gap-2.5">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center shadow-md">
+              <Disc className="text-white w-4 h-4 animate-[spin_10s_linear_infinite]" />
+            </div>
+            <div>
+              <h1 className="text-sm font-bold tracking-tight text-slate-100">TrappArchive</h1>
+              <p className="text-[9px] text-slate-500 uppercase font-mono tracking-wider">Audio Catalog</p>
+            </div>
+          </div>
+          
+          <div className="flex items-center gap-2">
+            <PWAInstallButton compact />
+          </div>
+        </header>
+
+        {/* Scrollable Workspace View Container */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar relative min-h-0">
           {activeTab === 'working-on' && (
             <WorkingOn 
               drafts={drafts} 
@@ -118,20 +185,18 @@ export default function App() {
           {activeTab === 'library' && (
             <Library 
               tracks={tracks} 
-              onPlay={setCurrentTrack} 
-              onEdit={(t) => {
-                setEditingTrack(t);
+              onPlayTrack={(track) => setCurrentTrack(track)}
+              onEditTrack={(track) => {
+                setEditingTrack(track);
+                setDraftToTrack(null);
                 setActiveTab('editor');
               }}
-              onDelete={handleDeleteTrack}
+              onDeleteTrack={handleDeleteTrack}
             />
           )}
           {activeTab === 'editor' && (
             <TrackEditor 
-              onSave={(t) => {
-                handleSaveTrack(t);
-                setDraftToTrack(null);
-              }}
+              onSave={handleSaveTrack}
               editTrack={editingTrack}
               initialDraft={draftToTrack}
               onUpdate={handleUpdateTrack}
@@ -142,18 +207,31 @@ export default function App() {
             <Albums 
               albums={albums} 
               tracks={tracks} 
-              onSaveAlbum={handleSaveAlbum} 
+              onSaveAlbum={handleSaveAlbum}
               onUpdateAlbum={handleUpdateAlbum}
               onDeleteAlbum={handleDeleteAlbum}
             />
           )}
           {activeTab === 'export' && (
-            <ExportSection albums={albums} tracks={tracks} />
+            <ExportSection 
+              albums={albums} 
+              tracks={tracks} 
+            />
           )}
         </div>
-        <Player currentTrack={currentTrack} />
-      </main>
 
+        {/* Player Component: 56px (h-14) on mobile above bottom-nav; 96px (h-24) on desktop */}
+        <Player currentTrack={currentTrack} />
+
+        {/* Mobile Bottom Navigation Bar (h-16 = 64px, visible only on mobile <768px) */}
+        <BottomNav 
+          activeTab={activeTab} 
+          setActiveTab={setActiveTab} 
+        />
+
+        {/* Offline Status Badge */}
+        <OfflineIndicator />
+      </main>
     </div>
   );
 }
