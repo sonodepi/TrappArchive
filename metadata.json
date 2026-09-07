@@ -1,0 +1,6 @@
+{
+  "name": "TrackStudio",
+  "description": "Desktop-style local music management and playback app prototype.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
