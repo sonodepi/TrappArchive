@@ -74,6 +74,15 @@ export function TrackEditor({
   /** C'e' un audio su cui si puo' davvero lavorare. */
   const hasUsableAudio = !!track.audio && track.audio.kind !== 'unavailable';
 
+  /**
+   * Titoli che non identificano nessun brano: cercarli su Tunebat restituisce
+   * risultati casuali. Sono i nomi con cui una bozza o una traccia nascono.
+   */
+  const PLACEHOLDER_TITLES = ['nuova bozza', 'bozza senza titolo', 'senza titolo', 'untitled draft', 'untitled'];
+  const canSearchTunebat =
+    track.title.trim().length > 2 &&
+    !PLACEHOLDER_TITLES.includes(track.title.trim().toLowerCase());
+
   useEffect(() => {
     if (editTrack) {
       setTrack({
@@ -515,15 +524,27 @@ export function TrackEditor({
               quindi l'estrazione non poteva funzionare. Il link invece porta
               alla pagina vera, dove i valori si leggono e si copiano qui sopra.
             */}
-            <a
-              href={getTunebatSearchUrl(track.title || '', track.mainArtist || '')}
-              target="_blank"
-              rel="noreferrer"
-              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors inline-flex items-center gap-1.5 pt-1"
-            >
-              <ExternalLink size={12} />
-              Confronta su Tunebat.com
-            </a>
+            {/*
+              Il link compare solo con un titolo vero. Con il titolo ancora al
+              suo valore iniziale la ricerca partiva su "Nuova Bozza" e Tunebat
+              restituiva decine di brani a caso: un link che non poteva
+              funzionare, offerto come se potesse.
+            */}
+            {canSearchTunebat ? (
+              <a
+                href={getTunebatSearchUrl(track.title, track.mainArtist || '')}
+                target="_blank"
+                rel="noreferrer"
+                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors inline-flex items-center gap-1.5 pt-1"
+              >
+                <ExternalLink size={12} />
+                Cerca &laquo;{track.title}&raquo; su Tunebat.com
+              </a>
+            ) : (
+              <p className="text-[11px] text-slate-600 pt-1">
+                Scrivi il titolo del brano per poterlo cercare su Tunebat.
+              </p>
+            )}
           </div>
 
           {/* Audio File Selection & Removal */}
