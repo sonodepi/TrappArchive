@@ -3,9 +3,11 @@ import { Album, DraftProject, Track } from '../types';
 import {
   Download, Upload, Disc, Music2, Library,
   CheckCircle2, Laptop, Smartphone, Wifi, HardDrive, Sparkles, AlertTriangle,
+  Cloud, LogIn, RefreshCw,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 import { parseAlbum, parseDraft, parseList, parseTrack } from '../storage/migrate';
+import type { useCloudSync } from '../cloud/useCloudSync';
 
 /** Riepilogo di cosa contiene un file, mostrato prima di importarlo. */
 interface PendingImport {
@@ -24,11 +26,13 @@ export function ExportSection({
   tracks,
   drafts,
   onImport,
+  cloud,
 }: {
   albums: Album[];
   tracks: Track[];
   drafts: DraftProject[];
   onImport: (data: { tracks: Track[]; albums: Album[]; drafts: DraftProject[] }) => void;
+  cloud: ReturnType<typeof useCloudSync>;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const [importNotice, setImportNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
@@ -264,6 +268,84 @@ export function ExportSection({
       {/* Grid: 1 col on mobile, 2 cols on tablet, 3 cols on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 flex-1 min-h-0">
         
+        {/* Sincronizzazione fra dispositivi: facoltativa, e onesta sui limiti. */}
+        <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-white/[0.02] border border-slate-900 rounded-2xl p-4 md:p-6 shadow-md space-y-3 shrink-0">
+          <div className="flex items-start justify-between gap-4 flex-wrap">
+            <div className="flex items-center gap-4 min-w-0">
+              <div className="w-12 h-12 bg-black border border-slate-800 rounded-xl flex items-center justify-center shrink-0 shadow-inner">
+                <Cloud className="text-amber-400 w-6 h-6" />
+              </div>
+              <div className="min-w-0">
+                <h3 className="text-base sm:text-lg font-semibold text-slate-100">
+                  Sincronizzazione fra dispositivi
+                </h3>
+                <p className="text-xs sm:text-sm text-slate-400 mt-0.5">
+                  {!cloud.configured
+                    ? 'Non configurata: l\u2019app lavora solo su questo dispositivo.'
+                    : cloud.user
+                      ? `Collegato come ${cloud.user.email || cloud.user.displayName}`
+                      : 'Configurata. Collegati per sincronizzare.'}
+                </p>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 flex-wrap">
+              {cloud.configured && !cloud.user && (
+                <button
+                  onClick={cloud.connect}
+                  disabled={cloud.status.state === 'working'}
+                  className="px-4 py-2.5 bg-amber-600/20 hover:bg-amber-600/30 text-amber-300 border border-amber-500/30 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40 min-h-[44px] flex items-center gap-2"
+                >
+                  <LogIn size={15} /> Collegati
+                </button>
+              )}
+              {cloud.user && (
+                <>
+                  <button
+                    onClick={cloud.sync}
+                    disabled={cloud.status.state === 'working'}
+                    className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50 rounded-xl text-xs font-semibold transition-colors disabled:opacity-40 min-h-[44px] flex items-center gap-2"
+                  >
+                    <RefreshCw size={15} className={cloud.status.state === 'working' ? 'animate-spin' : ''} />
+                    Sincronizza ora
+                  </button>
+                  <button
+                    onClick={cloud.disconnect}
+                    className="px-3 py-2.5 text-slate-400 hover:text-slate-200 text-xs transition-colors min-h-[44px]"
+                  >
+                    Scollega
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
+
+          {cloud.status.state === 'working' && (
+            <div className="p-3 bg-blue-950/30 border border-blue-500/30 rounded-xl flex items-center gap-2.5 text-xs text-blue-200">
+              <RefreshCw size={14} className="animate-spin shrink-0 text-blue-400" />
+              <span>{cloud.status.step}</span>
+            </div>
+          )}
+          {cloud.status.state === 'done' && (
+            <div className="p-3 bg-blue-950/30 border border-blue-500/30 rounded-xl flex items-start gap-2.5 text-xs text-blue-200">
+              <CheckCircle2 size={14} className="shrink-0 text-blue-400 mt-0.5" />
+              <span>{cloud.status.message}</span>
+            </div>
+          )}
+          {cloud.status.state === 'error' && (
+            <div className="p-3 bg-amber-950/30 border border-amber-500/40 rounded-xl flex items-start gap-2.5 text-xs text-amber-100">
+              <AlertTriangle size={14} className="shrink-0 text-amber-400 mt-0.5" />
+              <span>{cloud.status.message}</span>
+            </div>
+          )}
+
+          <p className="text-[11px] text-slate-500">
+            Sincronizza metadati, testi, album e bozze. <strong className="text-slate-400">I
+            file audio restano su questo dispositivo</strong> e vanno ricaricati altrove:
+            non passano dal cloud. Per il backup completo usa il file JSON qui sotto.
+          </p>
+        </div>
+
         {/* Card 1: backup completo del catalogo, su file locale */}
         <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-white/[0.02] border border-slate-900 rounded-2xl p-4 md:p-6 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-4">

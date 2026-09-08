@@ -1,0 +1,28 @@
+rules_version = '2';
+
+// Regole di sicurezza di Firestore per TrappArchive.
+//
+// DA COPIARE nella console Firebase: Firestore Database -> Regole -> Pubblica.
+// Senza queste regole il database e' aperto e chiunque conosca l'id del
+// progetto puo' leggere e scrivere i tuoi testi. La chiave di Firebase che sta
+// nel codice non protegge niente: e' un identificatore pubblico. Sono queste
+// righe a proteggere i dati.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // Ogni utente vede e scrive soltanto sotto il proprio uid.
+    // Nessuno puo' leggere le tracce o le bozze di un altro, nemmeno
+    // conoscendone l'indirizzo esatto.
+    match /users/{userId}/{document=**} {
+      allow read, write: if request.auth != null
+                         && request.auth.uid == userId;
+    }
+
+    // Tutto il resto e' negato. La regola esplicita evita che una raccolta
+    // aggiunta domani resti accessibile per dimenticanza.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
