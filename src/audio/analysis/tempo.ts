@@ -158,9 +158,9 @@ export function detectTempo(samples: Float32Array, sampleRate: number): TempoRes
     return { bpm: 0, confidence: 0, candidates: [] };
   }
 
-  // L'autocorrelazione arriva fino al quarto armonico del lag piu' lungo: senza,
+  // L'autocorrelazione arriva fino al quarto armonico del lag più lungo: senza,
   // i candidati lenti avrebbero meno termini nel pettine e la normalizzazione
-  // finirebbe per premiarli, che e' esattamente l'errore d'ottava da evitare.
+  // finirebbe per premiarli, che è esattamente l'errore d'ottava da evitare.
   const acMaxLag = Math.min(maxLag * COMB_WEIGHTS.length, novelty.length - 1);
   const ac = autocorrelate(novelty, minLag, acMaxLag);
   const totalCombWeight = COMB_WEIGHTS.reduce((a, b) => a + b, 0);

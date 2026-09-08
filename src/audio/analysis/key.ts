@@ -28,7 +28,7 @@ const LOG_COMPRESSION_GAMMA = 100;
  *
  * Serve a riportare l'energia degli armonici sulla fondamentale che li ha
  * generati. Senza, un DO con armoniche forti deposita molta energia sul SOL
- * (terza armonica) e la tonalita' stimata scivola sulla dominante: e' esattamente
+ * (terza armonica) e la tonalità stimata scivola sulla dominante: è esattamente
  * l'errore che i test rilevavano su una progressione C-F-G-C.
  */
 const HARMONIC_WEIGHTS = [1, 0.5, 1 / 3, 0.25, 0.2, 1 / 6];

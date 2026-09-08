@@ -1,5 +1,12 @@
 # TrappArchive — Audit del codice e Roadmap verso il rilascio iOS / Android
 
+> **Stato aggiornato.** Questo documento resta la fotografia del commit `77ec705`.
+> Da allora sono stati risolti: le 3 vulnerabilità e la chiave API committata (§3.9),
+> il rilevamento BPM/tonalità (§3.6), la trascrizione AI che era un placeholder
+> (tabella §2), la durata casuale, la condizione morta della sidebar e l'`alert()`
+> di validazione (§3.8). Restano aperti i due bug critici §3.1 e §3.2, il database
+> §3.3 e la collaborazione §3.4. Il piano operativo è in `PROGETTAZIONE.md`.
+
 > Revisione eseguita sul commit `77ec705` (branch `main`).
 > Verifiche eseguite: `bun install` (546 pacchetti, OK), `tsc --noEmit` (0 errori), `vite build`
 > (build production OK, bundle 339 kB / 93 kB gzip, service worker generato con 18 entry di precache).

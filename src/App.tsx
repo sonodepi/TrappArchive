@@ -14,10 +14,13 @@ import { Albums } from './components/Albums';
 import { ExportSection } from './components/ExportSection';
 import { PWAInstallButton } from './components/PWAInstallButton';
 import { OfflineIndicator } from './components/OfflineIndicator';
-import { Disc } from 'lucide-react';
+import { Settings } from './components/Settings';
+import { useSettings } from './settings/store';
+import { Disc, Settings as SettingsIcon } from 'lucide-react';
 
 export default function App() {
   const [activeTab, setActiveTab] = useState<string>('working-on');
+  const { settings, update: updateSettings } = useSettings();
   
   // App State
   const [tracks, setTracks] = useState<Track[]>([]);
@@ -100,10 +103,12 @@ export default function App() {
   }, []);
 
   const handleSaveTrack = (newTrack: Track) => {
-    const trackToSave = {
+    // La durata arriva dalla decodifica reale del file. Se non c'e' resta 0 e la
+    // libreria mostra "--:--": meglio un dato assente che uno inventato, come
+    // faceva il precedente Math.random().
+    const trackToSave: Track = {
       ...newTrack,
       createdAt: Date.now(),
-      durationMs: newTrack.durationMs || Math.floor(Math.random() * 180000) + 120000
     };
     setTracks(prev => [...prev, trackToSave]);
     setActiveTab('library');
@@ -165,6 +170,18 @@ export default function App() {
           </div>
           
           <div className="flex items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setActiveTab('settings')}
+              aria-label="Impostazioni"
+              className={`flex items-center justify-center w-9 h-9 rounded-lg border transition-colors ${
+                activeTab === 'settings'
+                  ? 'bg-blue-600/20 text-blue-400 border-blue-500/40'
+                  : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-200'
+              }`}
+            >
+              <SettingsIcon size={16} />
+            </button>
             <PWAInstallButton compact />
           </div>
         </header>
@@ -201,6 +218,8 @@ export default function App() {
               initialDraft={draftToTrack}
               onUpdate={handleUpdateTrack}
               onDelete={handleDeleteTrack}
+              settings={settings}
+              onOpenSettings={() => setActiveTab('settings')}
             />
           )}
           {activeTab === 'albums' && (
@@ -217,6 +236,9 @@ export default function App() {
               albums={albums} 
               tracks={tracks} 
             />
+          )}
+          {activeTab === 'settings' && (
+            <Settings settings={settings} onUpdate={updateSettings} />
           )}
         </div>
 

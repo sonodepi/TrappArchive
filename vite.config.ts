@@ -65,6 +65,11 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
+          // Il chunk dell'SDK Gemini non va precaricato: serve solo alla
+          // trascrizione, che richiede comunque una connessione. Precaricarlo
+          // significherebbe scaricare ~390 kB all'installazione per codice che
+          // offline non potrebbe mai essere usato.
+          globIgnores: ['**/gemini-*.js'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

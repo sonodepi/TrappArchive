@@ -14,6 +14,14 @@ import { GoogleGenAI, Type } from '@google/genai';
 import { decodeToMono } from '../audio/decode';
 import { blobToBase64, encodeWav16 } from '../audio/wav';
 import type { TranscriptionLanguage } from '../settings/types';
+import {
+  GeminiError,
+  type TranscribeParams,
+  type TranscriptionResult,
+  type LyricsSection,
+} from './gemini-types';
+
+export * from './gemini-types';
 
 /** Gemini ricampiona comunque a 16 kHz mono: inviare di più è solo banda sprecata. */
 const TRANSCRIBE_SAMPLE_RATE = 16000;
@@ -23,61 +31,6 @@ const TRANSCRIBE_SAMPLE_RATE = 16000;
  * A 16 kHz mono 16 bit servono 32 KB/s, quindi 15 MB ≈ 8 minuti di audio.
  */
 const INLINE_LIMIT_BYTES = 15 * 1024 * 1024;
-
-export type TranscribePhase =
-  | 'decoding'
-  | 'encoding'
-  | 'uploading'
-  | 'transcribing'
-  | 'done';
-
-export const PHASE_LABELS: Record<TranscribePhase, string> = {
-  decoding: "Decodifica dell'audio…",
-  encoding: 'Preparazione del file…',
-  uploading: 'Invio a Gemini…',
-  transcribing: 'Trascrizione in corso…',
-  done: 'Completato',
-};
-
-export interface TranscribeParams {
-  audio: Blob;
-  apiKey: string;
-  model: string;
-  language: TranscriptionLanguage;
-  signal?: AbortSignal;
-  onPhase?: (phase: TranscribePhase) => void;
-}
-
-export interface LyricsSection {
-  label: string;
-  text: string;
-}
-
-export interface TranscriptionResult {
-  lyrics: string;
-  language: string;
-  sections: LyricsSection[];
-  model: string;
-  durationMs: number;
-}
-
-/** Errore già tradotto e mostrabile all'utente così com'è. */
-export class GeminiError extends Error {
-  constructor(message: string, readonly kind: GeminiErrorKind) {
-    super(message);
-    this.name = 'GeminiError';
-  }
-}
-
-export type GeminiErrorKind =
-  | 'no-key'
-  | 'invalid-key'
-  | 'quota'
-  | 'forbidden'
-  | 'offline'
-  | 'audio'
-  | 'empty'
-  | 'unknown';
 
 const LANGUAGE_NAMES: Record<TranscriptionLanguage, string> = {
   it: 'italiano',
