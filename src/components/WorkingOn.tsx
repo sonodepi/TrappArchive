@@ -1,226 +1,218 @@
-import React, { useState, useRef } from 'react';
-import { DraftProject } from '../types';
+import React, { useMemo, useRef, useState } from 'react';
+import { MAX_AUTHORS, type DraftBlock, type DraftProject } from '../types';
 import { extractYoutubeId } from '../utils';
 import {
-  Youtube, AlignLeft, ArrowLeft, Plus,
-  Users, CheckCircle, Lock, PenTool, Trash2, ArrowRightToLine,
-  Activity, ExternalLink, RefreshCw, X, AlertTriangle, Download, Upload, MicOff,
+  AlignLeft, ArrowLeft, Plus, Users, CheckCircle, Lock, PenTool, Trash2,
+  ArrowRightToLine, X, AlertTriangle, Download, Upload, Youtube, Merge,
+  UserPlus, Hand,
 } from 'lucide-react';
 import { parseDraft } from '../storage/migrate';
-import { autoDetectTunebatData, getTunebatSearchUrl, scrapeTunebatUrl } from '../utils/tunebat';
+import {
+  authorColor, canAddAuthor, canEditBlock, describeMerge, isOwner,
+  makeBlock, mergeBlocks, mergeDrafts, nextBlockLabel,
+} from '../drafts/collab';
+import type { AppSettings } from '../settings/types';
 
-export function WorkingOn({ 
-  drafts, 
+type Notice = { kind: 'ok' | 'error'; text: string } | null;
+
+export function WorkingOn({
+  drafts,
   setDrafts,
-  onSendToTrack
-}: { 
-  drafts: DraftProject[], 
-  setDrafts: (d: DraftProject[]) => void,
-  onSendToTrack?: (draft: DraftProject) => void
+  onSendToTrack,
+  settings,
+  onUpdateSettings,
+}: {
+  drafts: DraftProject[];
+  setDrafts: (d: DraftProject[]) => void;
+  onSendToTrack?: (draft: DraftProject) => void;
+  settings: AppSettings;
+  onUpdateSettings: (patch: Partial<AppSettings>) => void;
 }) {
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
-  const draftFileInputRef = useRef<HTMLInputElement | null>(null);
-  const [exchangeNotice, setExchangeNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [notice, setNotice] = useState<Notice>(null);
   const [urlInput, setUrlInput] = useState('');
-  const [tunebatInput, setTunebatInput] = useState('');
   const [draftToDelete, setDraftToDelete] = useState<DraftProject | null>(null);
-  const [isDetectingTunebat, setIsDetectingTunebat] = useState(false);
-  
-  const [ownedDraftIds, setOwnedDraftIds] = useState<string[]>(() => {
-    return JSON.parse(localStorage.getItem('trapparchive_owned') || '[]');
-  });
+  const [nameInput, setNameInput] = useState(settings.authorName);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
-  const createDraft = () => {
-    const newDraft: DraftProject = {
-      id: crypto.randomUUID(),
-      title: 'Nuova Bozza',
-      lyrics: '',
-      ownerLyrics: '',
-      collaboratorLyrics: '',
-      isCoopMode: false,
-      ownerReady: false,
-      collabReady: false,
-      beatUrl: '',
-      updatedAt: Date.now(),
-      bpm: 140,
-      key: 'C Minor'
-    };
-    setDrafts([...drafts, newDraft]);
-    setActiveDraftId(newDraft.id);
-    setUrlInput('');
-    
-    setOwnedDraftIds(prev => {
-      const next = [...prev, newDraft.id];
-      localStorage.setItem('trapparchive_owned', JSON.stringify(next));
-      return next;
+  const me = settings.authorId;
+  const myName = settings.authorName.trim();
+
+  const activeDraft = drafts.find(d => d.id === activeDraftId) ?? null;
+
+  const updateDraft = (id: string, patch: Partial<DraftProject>) => {
+    setDrafts(drafts.map(d => (d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d)));
+  };
+
+  const updateBlock = (draft: DraftProject, blockId: string, patch: Partial<DraftBlock>) => {
+    updateDraft(draft.id, {
+      blocks: draft.blocks.map(b =>
+        b.id === blockId ? { ...b, ...patch, updatedAt: Date.now() } : b,
+      ),
     });
   };
 
-  /**
-   * Scrittura a due voci senza server.
-   *
-   * Prima esisteva un codice a 6 cifre che prometteva una sessione condivisa:
-   * `handleJoin` lo cercava pero' fra le bozze locali, e se non lo trovava ne
-   * creava una vuota con quel codice. L'operazione non falliva mai e due
-   * dispositivi non si incontravano mai. Qui la bozza si scambia come file:
-   * il trasporto lo sceglie l'utente, e il risultato e' verificabile.
-   */
-  const exportDraft = (draft: DraftProject) => {
-    const payload = {
-      app: 'TrappArchive',
-      kind: 'draft' as const,
-      version: 1,
-      exportedAt: new Date().toISOString(),
-      draft,
+  const createDraft = () => {
+    const draft: DraftProject = {
+      id: crypto.randomUUID(),
+      title: 'Nuova Bozza',
+      lyrics: '',
+      ownerId: me,
+      authors: [{ id: me, name: myName || 'Io', colorIndex: 0 }],
+      blocks: [makeBlock('Strofa 1', me)],
+      beatUrl: '',
+      updatedAt: Date.now(),
+      bpm: undefined,
+      key: undefined,
     };
+    setDrafts([...drafts, draft]);
+    setActiveDraftId(draft.id);
+    setUrlInput('');
+  };
+
+  /** Scrive la bozza su file: e' il trasporto, al posto di un server. */
+  const exportDraft = (draft: DraftProject) => {
+    const payload = { app: 'TrappArchive', kind: 'draft', version: 2, draft };
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
     a.href = url;
-    a.download = `trapparchive_bozza_${(draft.title || 'senza_titolo').replace(/\s+/g, '_').toLowerCase()}.json`;
+    a.download = `bozza_${(draft.title || 'senza_titolo').replace(/\s+/g, '_').toLowerCase()}.json`;
     document.body.appendChild(a);
     a.click();
     document.body.removeChild(a);
     URL.revokeObjectURL(url);
+    setNotice({ kind: 'ok', text: 'Bozza salvata come file: mandala a chi deve scrivere.' });
   };
 
   const handleImportDraft = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     e.target.value = '';
-    setExchangeNotice(null);
+    setNotice(null);
 
     const reader = new FileReader();
-    reader.onerror = () =>
-      setExchangeNotice({ kind: 'error', text: 'Impossibile leggere il file selezionato.' });
-
+    reader.onerror = () => setNotice({ kind: 'error', text: 'Impossibile leggere il file.' });
     reader.onload = event => {
       let parsed: unknown;
       try {
         parsed = JSON.parse(String(event.target?.result ?? ''));
       } catch {
-        setExchangeNotice({ kind: 'error', text: 'Il file non e\u2019 un JSON valido.' });
+        setNotice({ kind: 'error', text: 'Il file non e’ un JSON valido.' });
         return;
       }
 
-      const raw = parsed as { draft?: unknown };
-      const incoming = parseDraft(raw?.draft ?? parsed);
+      const incoming = parseDraft((parsed as { draft?: unknown })?.draft ?? parsed);
       if (!incoming) {
-        setExchangeNotice({
-          kind: 'error',
-          text: 'Questo file non contiene una bozza di TrappArchive.',
+        setNotice({ kind: 'error', text: 'Questo file non contiene una bozza di TrappArchive.' });
+        return;
+      }
+
+      const mine = drafts.find(d => d.id === incoming.id);
+      if (!mine) {
+        // Bozza di qualcun altro: entro come collaboratore, e mi aggiungo agli
+        // autori se c'e' ancora posto.
+        const hasRoom = canAddAuthor(incoming) && !incoming.authors.some(a => a.id === me);
+        const joined = hasRoom
+          ? {
+              ...incoming,
+              authors: [...incoming.authors, {
+                id: me, name: myName || 'Io', colorIndex: incoming.authors.length,
+              }],
+            }
+          : incoming;
+        setDrafts([...drafts, joined]);
+        setActiveDraftId(joined.id);
+        setUrlInput(joined.beatUrl);
+        setNotice({
+          kind: 'ok',
+          text: hasRoom || incoming.authors.some(a => a.id === me)
+            ? `Sei entrato in "${joined.title}".`
+            : `Aperta "${joined.title}" in sola lettura: e’ gia’ al massimo di ${MAX_AUTHORS} persone.`,
         });
         return;
       }
 
-      const existing = drafts.find(d => d.id === incoming.id);
-      if (!existing) {
-        // Bozza di qualcun altro: qui dentro io sono il collaboratore, quindi
-        // non finisce fra quelle di cui sono proprietario.
-        setDrafts([...drafts, incoming]);
-        setActiveDraftId(incoming.id);
-        setExchangeNotice({ kind: 'ok', text: `Bozza "${incoming.title}" importata.` });
-        return;
-      }
-
-      // Stessa bozza tornata indietro: prendo solo la voce dell'altro e
-      // conservo la mia, che e' piu' recente di quella che avevo spedito.
-      const iAmOwner = ownedDraftIds.includes(existing.id);
-      const merged: DraftProject = {
-        ...existing,
-        ownerLyrics: iAmOwner ? existing.ownerLyrics : incoming.ownerLyrics,
-        collaboratorLyrics: iAmOwner ? incoming.collaboratorLyrics : existing.collaboratorLyrics,
-        ownerReady: iAmOwner ? existing.ownerReady : incoming.ownerReady,
-        collabReady: iAmOwner ? incoming.collabReady : existing.collabReady,
-        beatUrl: existing.beatUrl || incoming.beatUrl,
-        updatedAt: Date.now(),
-      };
-      setDrafts(drafts.map(d => (d.id === merged.id ? merged : d)));
-      setActiveDraftId(merged.id);
-      setExchangeNotice({
-        kind: 'ok',
-        text: `Aggiornata "${merged.title}" con la parte ${iAmOwner ? 'del collaboratore' : 'dell\u2019autore'}.`,
+      const report = mergeDrafts(mine, incoming);
+      setDrafts(drafts.map(d => (d.id === report.draft.id ? report.draft : d)));
+      setActiveDraftId(report.draft.id);
+      setNotice({
+        kind: report.conflicts.length > 0 ? 'error' : 'ok',
+        text: describeMerge(report),
       });
     };
-
     reader.readAsText(file);
   };
 
-  const activeDraft = drafts.find(d => d.id === activeDraftId);
+  const confirmDelete = () => {
+    if (!draftToDelete) return;
+    setDrafts(drafts.filter(d => d.id !== draftToDelete.id));
+    if (activeDraftId === draftToDelete.id) setActiveDraftId(null);
+    setDraftToDelete(null);
+  };
 
-  const updateActiveDraft = (updates: Partial<DraftProject>) => {
-    if (!activeDraft) return;
-    const updatedDrafts = drafts.map(d => 
-      d.id === activeDraft.id ? { ...d, ...updates, updatedAt: Date.now() } : d
+  const deleteDialog = draftToDelete ? (
+    <DeleteDialog
+      title={draftToDelete.title}
+      onCancel={() => setDraftToDelete(null)}
+      onConfirm={confirmDelete}
+    />
+  ) : null;
+
+  // ==========================================================================
+  // Serve un nome prima di scrivere in gruppo: senza, i blocchi sarebbero
+  // "di qualcuno" e nessuno saprebbe di chi.
+  // ==========================================================================
+  if (!myName) {
+    const confirmName = () => {
+      const clean = nameInput.trim();
+      if (clean) onUpdateSettings({ authorName: clean });
+    };
+    return (
+      <div className="p-4 md:p-8 h-full flex items-center justify-center max-w-lg mx-auto">
+        <div className="w-full bg-white/[0.02] border border-slate-900 rounded-2xl p-6 space-y-4 shadow-lg">
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-blue-600/20 border border-blue-500/30 flex items-center justify-center shrink-0">
+              <PenTool className="text-blue-400 w-5 h-5" />
+            </div>
+            <div>
+              <h2 className="text-lg font-bold text-slate-100">Come ti chiami?</h2>
+              <p className="text-xs text-slate-400">Serve solo a firmare le tue strofe.</p>
+            </div>
+          </div>
+
+          <input
+            type="text"
+            autoFocus
+            value={nameInput}
+            maxLength={24}
+            onChange={e => setNameInput(e.target.value)}
+            onKeyDown={e => e.key === 'Enter' && confirmName()}
+            aria-label="Il tuo nome"
+            placeholder="es. Depi"
+            className="w-full bg-black/40 border border-slate-900 px-4 py-3 rounded-xl text-slate-100 placeholder:text-slate-600 focus:outline-none focus:border-blue-500 min-h-[44px]"
+          />
+
+          <p className="text-[11px] text-slate-500">
+            Resta su questo dispositivo. Non e&rsquo; un account: non c&rsquo;e&rsquo; niente da
+            registrare, e nessuno lo vede finche&rsquo; non mandi tu una bozza a qualcuno.
+          </p>
+
+          <button
+            onClick={confirmName}
+            disabled={!nameInput.trim()}
+            className="w-full bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white font-semibold px-4 py-3 rounded-xl transition-colors min-h-[44px]"
+          >
+            Continua
+          </button>
+        </div>
+      </div>
     );
-    setDrafts(updatedDrafts);
-  };
+  }
 
-  // Load beat and auto-detect BPM/Key via Tunebat
-  const handleLoadBeat = async () => {
-    if (!activeDraft) return;
-    updateActiveDraft({ beatUrl: urlInput });
-
-    if (urlInput) {
-      setIsDetectingTunebat(true);
-      try {
-        const result = await autoDetectTunebatData({
-          title: activeDraft.title,
-          audioUrl: urlInput
-        });
-        if (result) {
-          updateActiveDraft({
-            beatUrl: urlInput,
-            bpm: result.bpm,
-            key: result.key
-          });
-        }
-      } catch (e) {
-        console.error('Tunebat auto-detect failed:', e);
-      } finally {
-        setIsDetectingTunebat(false);
-      }
-    }
-  };
-
-  const handleLoadTunebatLink = async () => {
-    if (!activeDraft || !tunebatInput) return;
-    setIsDetectingTunebat(true);
-    try {
-      const result = await scrapeTunebatUrl(tunebatInput);
-      if (result) {
-        updateActiveDraft({
-          bpm: result.bpm || activeDraft.bpm,
-          key: result.key || activeDraft.key
-        });
-      }
-    } catch (e) {
-      console.error('Tunebat scrape error:', e);
-    } finally {
-      setIsDetectingTunebat(false);
-    }
-  };
-
-  // Remove beat from draft
-  const handleRemoveBeat = () => {
-    setUrlInput('');
-    updateActiveDraft({ beatUrl: '' });
-  };
-
-  const confirmDeleteDraft = () => {
-    if (draftToDelete) {
-      setDrafts(drafts.filter(d => d.id !== draftToDelete.id));
-      if (activeDraftId === draftToDelete.id) {
-        setActiveDraftId(null);
-      }
-      setDraftToDelete(null);
-    }
-  };
-
-  // =========================================================================
-  // VIEW 1: Grid list of all drafts (1 col mobile, 2 col tablet, 3 col desktop)
-  // Adaptive card height based on content
-  // =========================================================================
+  // ==========================================================================
+  // Elenco delle bozze
+  // ==========================================================================
   if (!activeDraft) {
     return (
       <div className="p-4 md:p-6 lg:p-8 h-full flex flex-col max-w-7xl mx-auto pb-36">
@@ -228,31 +220,30 @@ export function WorkingOn({
           <div>
             <h2 className="text-xl md:text-2xl lg:text-3xl font-bold tracking-tight text-slate-100 flex items-center gap-3">
               <AlignLeft className="text-blue-500 shrink-0" />
-              Bozze & Sessioni Co-op
+              Bozze &amp; Scrittura in gruppo
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Scrivi testi, sincronizza con basi YouTube e passa la bozza a un
-              collaboratore come file.
+              Fino a {MAX_AUTHORS} persone sullo stesso pezzo. Ognuno ha i suoi blocchi,
+              tutti vedono tutto, chi ha creato la bozza unisce.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
             <input
-              ref={draftFileInputRef}
+              ref={fileInputRef}
               type="file"
               accept=".json,application/json"
               onChange={handleImportDraft}
               className="hidden"
             />
             <button
-              onClick={() => draftFileInputRef.current?.click()}
+              onClick={() => fileInputRef.current?.click()}
               className="bg-white/5 hover:bg-white/10 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 border border-white/5 min-h-[44px]"
-              title="Apri una bozza ricevuta da un collaboratore"
+              title="Apri una bozza che ti hanno mandato"
             >
-              <Upload size={16} /> Importa bozza
+              <Upload size={16} /> Apri bozza ricevuta
             </button>
-
-            <button 
+            <button
               onClick={createDraft}
               className="bg-blue-600 hover:bg-blue-500 text-white font-medium px-4 py-2.5 rounded-xl text-sm transition-all shadow-[0_0_15px_rgba(37,99,235,0.3)] border border-blue-400/50 flex items-center gap-2 min-h-[44px]"
             >
@@ -261,570 +252,510 @@ export function WorkingOn({
           </div>
         </div>
 
-        {exchangeNotice && (
-          <div
-            className={`mb-5 p-3 border rounded-xl flex items-center gap-2.5 text-xs shrink-0 ${
-              exchangeNotice.kind === 'ok'
-                ? 'bg-blue-950/40 border-blue-500/40 text-blue-200'
-                : 'bg-amber-950/40 border-amber-500/40 text-amber-100'
-            }`}
-          >
-            {exchangeNotice.kind === 'ok' ? (
-              <CheckCircle size={15} className="shrink-0 text-blue-400" />
-            ) : (
-              <AlertTriangle size={15} className="shrink-0 text-amber-400" />
-            )}
-            <span className="flex-1">{exchangeNotice.text}</span>
-            <button
-              onClick={() => setExchangeNotice(null)}
-              aria-label="Chiudi"
-              className="p-1 hover:text-white transition-colors"
-            >
-              <X size={13} />
-            </button>
-          </div>
-        )}
+        {notice && <NoticeBar notice={notice} onClose={() => setNotice(null)} />}
 
         {drafts.length === 0 ? (
           <div className="text-slate-500 text-center py-24 border border-slate-900 bg-white/[0.02] shadow-[0_8px_30px_rgb(0,0,0,0.4)] rounded-2xl p-6">
             <AlignLeft className="w-12 h-12 mx-auto mb-4 text-slate-700" />
             <p className="text-lg font-medium text-slate-300">Nessuna bozza attiva</p>
-            <p className="text-sm mt-1 max-w-sm mx-auto text-slate-500">
-              Crea una bozza per iniziare a scrivere, oppure importa quella che
-              ti ha passato un collaboratore.
+            <p className="text-sm mt-2 max-w-md mx-auto">
+              Crea una bozza per iniziare a scrivere, oppure apri quella che ti ha
+              mandato un collaboratore.
             </p>
-            <button 
+            <button
               onClick={createDraft}
-              className="mt-6 inline-flex items-center gap-2 bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-colors shadow-md min-h-[44px]"
+              className="mt-6 bg-blue-600 hover:bg-blue-500 text-white font-medium px-5 py-3 rounded-xl text-sm transition-colors inline-flex items-center gap-2 min-h-[44px]"
             >
-              <Plus size={16} /> Inizia a scrivere
+              <Plus size={18} /> Inizia a scrivere
             </button>
           </div>
         ) : (
-          /* Drafts Grid: 1 col on mobile, 2 on tablet, 3 on desktop, adaptive height */
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-            {drafts.map(d => (
-              <div 
-                key={d.id}
-                onClick={() => {
-                  setActiveDraftId(d.id);
-                  setUrlInput(d.beatUrl);
-                }}
-                className="bg-white/[0.02] border border-slate-900 rounded-2xl p-4 sm:p-5 hover:bg-white/[0.04] transition-all cursor-pointer relative group shadow-md flex flex-col justify-between h-auto min-h-[200px]"
-              >
-                <div>
-                  <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-mono tracking-wider text-slate-500 flex items-center gap-1.5">
-                      {new Date(d.updatedAt).toLocaleDateString('it-IT', {
-                        day: '2-digit', month: 'short', year: 'numeric',
-                      })}
-                    </span>
-                    
-                    <div className="flex items-center gap-1.5">
-                      {d.isCoopMode && (
-                        <span className="px-2 py-0.5 bg-blue-500/10 text-blue-400 border border-blue-500/20 rounded-md text-[10px] font-semibold flex items-center gap-1">
-                          <Users size={11} /> Co-op
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-5">
+            {drafts.map(d => {
+              const filled = d.blocks.filter(b => b.text.trim()).length;
+              const done = d.blocks.filter(b => b.done).length;
+              return (
+                <div
+                  key={d.id}
+                  onClick={() => { setActiveDraftId(d.id); setUrlInput(d.beatUrl); }}
+                  className="bg-white/[0.02] border border-slate-900 rounded-2xl p-4 sm:p-5 hover:bg-white/[0.04] transition-all cursor-pointer relative group shadow-md flex flex-col justify-between min-h-[190px]"
+                >
+                  <div>
+                    <div className="flex items-center justify-between mb-3 gap-2">
+                      <span className="text-[11px] font-mono text-slate-500">
+                        {new Date(d.updatedAt).toLocaleDateString('it-IT', {
+                          day: '2-digit', month: 'short', year: 'numeric',
+                        })}
+                      </span>
+                      {isOwner(d, me) && (
+                        <span className="text-[10px] font-semibold uppercase tracking-wider text-blue-400 bg-blue-500/10 border border-blue-500/30 px-2 py-0.5 rounded-full">
+                          tua
                         </span>
                       )}
-                      
-                      {/* Delete Draft Button */}
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setDraftToDelete(d);
-                        }}
-                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
-                        title="Elimina bozza"
-                      >
-                        <Trash2 size={14} />
-                      </button>
+                    </div>
+
+                    <h3 className="font-bold text-slate-100 truncate">{d.title}</h3>
+
+                    <div className="flex items-center gap-1.5 mt-2.5 flex-wrap">
+                      {d.authors.map(a => {
+                        const c = authorColor(a.colorIndex);
+                        return (
+                          <span
+                            key={a.id}
+                            className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 ${c.soft} ${c.border} ${c.text}`}
+                          >
+                            <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                            {a.id === me ? 'tu' : a.name}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
 
-                  <h3 className="font-bold text-base text-slate-100 mb-2 truncate">
-                    {d.title || 'Nuova Bozza'}
-                  </h3>
-
-                  {/* Tunebat details preview */}
-                  {(d.bpm || d.key) && (
-                    <div className="flex items-center gap-2 text-[11px] font-mono text-slate-400 mb-3">
-                      {d.bpm && <span className="text-blue-400 font-semibold">{d.bpm} BPM</span>}
-                      {d.key && <span>• {d.key}</span>}
-                    </div>
-                  )}
-
-                  {/* Lyrics Snippet */}
-                  <p className="text-xs text-slate-400 font-mono line-clamp-4 leading-relaxed bg-black/30 p-3 rounded-xl border border-slate-900/80 mb-3">
-                    {d.isCoopMode ? (
-                      d.lyrics || (d.ownerLyrics ? `[Autore]: ${d.ownerLyrics}` : 'Bozza vuota in attesa di rime...')
-                    ) : (
-                      d.lyrics || 'Nessun testo presente. Clicca per comporre.'
-                    )}
-                  </p>
+                  <div className="flex items-center justify-between mt-4 pt-3 border-t border-slate-900">
+                    <span className="text-xs text-slate-500">
+                      {d.blocks.length} blocchi &middot; {filled} scritti &middot; {done} chiusi
+                    </span>
+                    <button
+                      onClick={e => { e.stopPropagation(); setDraftToDelete(d); }}
+                      aria-label={`Elimina ${d.title}`}
+                      className="p-2 text-slate-600 hover:text-rose-400 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100 min-h-[36px] min-w-[36px] flex items-center justify-center"
+                    >
+                      <Trash2 size={15} />
+                    </button>
+                  </div>
                 </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-500 font-mono pt-3 border-t border-slate-900/80">
-                  <span className="flex items-center gap-1">
-                    <Youtube size={12} className={d.beatUrl ? 'text-red-500' : 'text-slate-700'} />
-                    {d.beatUrl ? 'Base collegata' : 'Nessuna base'}
-                  </span>
-                  <span>{new Date(d.updatedAt).toLocaleDateString()}</span>
-                </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
-        {/* Delete Draft Confirmation Modal */}
-        {draftToDelete && (
-          <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-            <div className="bg-[#0b1120] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in duration-150">
-              <h3 className="text-lg font-bold text-slate-100 mb-2 flex items-center gap-2">
-                <AlertTriangle className="text-rose-500" size={20} />
-                Elimina Bozza
-              </h3>
-              <p className="text-sm text-slate-400 mb-6">
-                Sei sicuro di voler eliminare definitivamente il progetto <strong className="text-slate-200">"{draftToDelete.title}"</strong>?
-              </p>
-              <div className="flex items-center justify-end gap-3">
-                <button
-                  onClick={() => setDraftToDelete(null)}
-                  className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
-                >
-                  Annulla
-                </button>
-                <button
-                  onClick={confirmDeleteDraft}
-                  className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-sm font-medium transition-colors shadow-md min-h-[44px]"
-                >
-                  Elimina Definitivamente
-                </button>
-              </div>
-            </div>
-          </div>
-        )}
+        {deleteDialog}
       </div>
     );
   }
 
-  // =========================================================================
-  // VIEW 2: Inside Open Draft
-  // Desktop: Editor and YouTube side-by-side
-  // Mobile: Stacked vertically (Editor first, then YouTube player below)
-  // YouTube player: aspect-video (16:9)
-  // Co-op mode: panels stacked vertically on mobile, side-by-side on desktop
-  // =========================================================================
-  const ytId = extractYoutubeId(activeDraft.beatUrl);
-  const isOwner = ownedDraftIds.includes(activeDraft.id);
-  const myLyrics = isOwner ? (activeDraft.ownerLyrics || '') : (activeDraft.collaboratorLyrics || '');
-  const friendLyrics = isOwner ? (activeDraft.collaboratorLyrics || '') : (activeDraft.ownerLyrics || '');
-  const myReady = isOwner ? activeDraft.ownerReady : activeDraft.collabReady;
-  const friendReady = isOwner ? activeDraft.collabReady : activeDraft.ownerReady;
-  const bothReady = activeDraft.ownerReady && activeDraft.collabReady;
+  // ==========================================================================
+  // Vista di scrittura
+  // ==========================================================================
+  return (
+    <DraftEditor
+      draft={activeDraft}
+      me={me}
+      myName={myName}
+      urlInput={urlInput}
+      setUrlInput={setUrlInput}
+      notice={notice}
+      setNotice={setNotice}
+      onBack={() => setActiveDraftId(null)}
+      onUpdateDraft={patch => updateDraft(activeDraft.id, patch)}
+      onUpdateBlock={(blockId, patch) => updateBlock(activeDraft, blockId, patch)}
+      onExport={() => exportDraft(activeDraft)}
+      onSendToTrack={onSendToTrack}
+      onDelete={() => setDraftToDelete(activeDraft)}
+      deleteDialog={deleteDialog}
+    />
+  );
+}
 
-  const handleMyLyricsChange = (text: string) => {
-    if (isOwner) updateActiveDraft({ ownerLyrics: text });
-    else updateActiveDraft({ collaboratorLyrics: text });
+// ============================================================================
+
+function NoticeBar({ notice, onClose }: { notice: NonNullable<Notice>; onClose: () => void }) {
+  return (
+    <div
+      className={`mb-5 p-3 border rounded-xl flex items-start gap-2.5 text-xs shrink-0 ${
+        notice.kind === 'ok'
+          ? 'bg-blue-950/40 border-blue-500/40 text-blue-200'
+          : 'bg-amber-950/40 border-amber-500/40 text-amber-100'
+      }`}
+    >
+      {notice.kind === 'ok'
+        ? <CheckCircle size={15} className="shrink-0 text-blue-400 mt-0.5" />
+        : <AlertTriangle size={15} className="shrink-0 text-amber-400 mt-0.5" />}
+      <span className="flex-1">{notice.text}</span>
+      <button onClick={onClose} aria-label="Chiudi" className="p-1 hover:text-white transition-colors shrink-0">
+        <X size={13} />
+      </button>
+    </div>
+  );
+}
+
+function DeleteDialog({
+  title, onCancel, onConfirm,
+}: { title: string; onCancel: () => void; onConfirm: () => void }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+      <div className="w-full max-w-sm bg-[#0a0f1c] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+        <h3 className="text-base font-bold text-slate-100">Eliminare la bozza?</h3>
+        <p className="text-sm text-slate-400">
+          &laquo;<strong className="text-slate-200">{title}</strong>&raquo; e tutti i suoi
+          blocchi verranno eliminati. L&rsquo;operazione non si puo&rsquo; annullare.
+        </p>
+        <div className="flex justify-end gap-2">
+          <button onClick={onCancel} className="px-4 py-2.5 text-slate-300 hover:text-white rounded-xl text-sm min-h-[44px]">
+            Annulla
+          </button>
+          <button onClick={onConfirm} className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-sm font-semibold min-h-[44px]">
+            Elimina
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function DraftEditor({
+  draft, me, myName, urlInput, setUrlInput, notice, setNotice,
+  onBack, onUpdateDraft, onUpdateBlock, onExport, onSendToTrack, onDelete, deleteDialog,
+}: {
+  draft: DraftProject;
+  me: string;
+  myName: string;
+  urlInput: string;
+  setUrlInput: (v: string) => void;
+  notice: Notice;
+  setNotice: (n: Notice) => void;
+  onBack: () => void;
+  onUpdateDraft: (patch: Partial<DraftProject>) => void;
+  onUpdateBlock: (blockId: string, patch: Partial<DraftBlock>) => void;
+  onExport: () => void;
+  onSendToTrack?: (draft: DraftProject) => void;
+  onDelete: () => void;
+  deleteDialog: React.ReactNode;
+}) {
+  const owner = isOwner(draft, me);
+  const ytId = extractYoutubeId(draft.beatUrl);
+  const authorById = useMemo(
+    () => new Map(draft.authors.map(a => [a.id, a])),
+    [draft.authors],
+  );
+
+  const addBlock = () => {
+    onUpdateDraft({ blocks: [...draft.blocks, makeBlock(nextBlockLabel(draft.blocks), null)] });
   };
 
-  const toggleReady = () => {
-    if (isOwner) updateActiveDraft({ ownerReady: !activeDraft.ownerReady });
-    else updateActiveDraft({ collabReady: !activeDraft.collabReady });
+  const removeBlock = (blockId: string) => {
+    onUpdateDraft({ blocks: draft.blocks.filter(b => b.id !== blockId) });
   };
 
-  const tunebatSearchUrl = getTunebatSearchUrl(activeDraft.title);
+  const doMerge = () => {
+    const text = mergeBlocks(draft.blocks);
+    onUpdateDraft({ lyrics: text });
+    setNotice({
+      kind: text ? 'ok' : 'error',
+      text: text
+        ? `Testo unito: ${draft.blocks.filter(b => b.text.trim()).length} blocchi.`
+        : 'Non c’e’ ancora niente da unire: i blocchi sono tutti vuoti.',
+    });
+  };
+
+  const openBlocks = draft.blocks.filter(b => !b.done).length;
 
   return (
     <div className="p-4 md:p-6 lg:p-8 h-full flex flex-col max-w-7xl mx-auto pb-36">
-      {/* Session Top Bar */}
-      <div className="mb-6 flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b border-slate-900">
-        <div className="flex flex-wrap items-center gap-3">
-          <button 
-            onClick={() => setActiveDraftId(null)}
-            className="p-2 hover:bg-white/5 rounded-xl transition-colors text-slate-400 hover:text-white min-h-[44px] min-w-[44px] flex items-center justify-center"
-            title="Torna all'elenco bozze"
+      {/* Intestazione */}
+      <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
+        <div className="flex items-start gap-3 min-w-0 flex-1">
+          <button
+            onClick={onBack}
+            aria-label="Torna alle bozze"
+            className="p-2 text-slate-400 hover:text-white transition-colors shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
           >
             <ArrowLeft size={20} />
           </button>
-          
-          <input 
-            type="text" 
-            value={activeDraft.title}
-            onChange={(e) => updateActiveDraft({ title: e.target.value })}
-            className="text-lg sm:text-2xl font-bold tracking-tight text-slate-100 bg-transparent border-none focus:outline-none focus:ring-0 p-0 max-w-[200px] sm:max-w-xs truncate min-h-[44px]"
-          />
-
-          {/* Tunebat BPM & Key badges */}
-          <div className="flex items-center gap-1.5 bg-black/60 border border-slate-800 rounded-xl px-2.5 py-1 text-xs">
-            <span className="text-blue-400 font-mono font-bold">{activeDraft.bpm || 140} BPM</span>
-            <span className="text-slate-600">•</span>
-            <span className="text-purple-400 font-mono font-bold">{activeDraft.key || 'C Minor'}</span>
-            <a 
-              href={tunebatSearchUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="ml-1 text-slate-500 hover:text-slate-300"
-              title="Cerca su Tunebat"
-            >
-              <ExternalLink size={12} />
-            </a>
-          </div>
-
-          <div className="flex items-center gap-1.5 border-l border-slate-800 pl-3">
-            <button
-              onClick={() => {
-                if (onSendToTrack) onSendToTrack(activeDraft);
-              }}
-              className="px-3 py-2 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-xl transition-colors border border-blue-500/20 flex items-center gap-1.5 text-xs font-semibold min-h-[40px]"
-              title="Esporta in Aggiungi Traccia"
-            >
-              <ArrowRightToLine size={16} />
-              <span className="hidden sm:inline">Esporta in Traccia</span>
-            </button>
-            <button
-              onClick={() => setDraftToDelete(activeDraft)}
-              className="p-2 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-xl transition-colors border border-rose-500/20 flex items-center gap-1.5 text-xs font-semibold min-h-[40px] min-w-[40px] justify-center"
-              title="Elimina questa bozza"
-            >
-              <Trash2 size={16} />
-            </button>
+          <div className="min-w-0 flex-1">
+            <input
+              type="text"
+              value={draft.title}
+              onChange={e => onUpdateDraft({ title: e.target.value })}
+              aria-label="Titolo della bozza"
+              className="w-full bg-transparent text-xl md:text-2xl font-bold text-slate-100 focus:outline-none focus:border-b focus:border-blue-500 truncate"
+            />
+            <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+              {draft.authors.map(a => {
+                const c = authorColor(a.colorIndex);
+                return (
+                  <span
+                    key={a.id}
+                    className={`text-[11px] px-2 py-0.5 rounded-full border flex items-center gap-1.5 ${c.soft} ${c.border} ${c.text}`}
+                  >
+                    <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                    {a.id === me ? `${myName} (tu)` : a.name}
+                    {a.id === draft.ownerId && <Lock size={9} className="opacity-60" />}
+                  </span>
+                );
+              })}
+              {canAddAuthor(draft) ? (
+                <span className="text-[11px] text-slate-500 flex items-center gap-1">
+                  <UserPlus size={11} />
+                  {MAX_AUTHORS - draft.authors.length} posti liberi
+                </span>
+              ) : (
+                <span className="text-[11px] text-slate-500">al completo</span>
+              )}
+            </div>
           </div>
         </div>
-        
-        <div className="flex items-center gap-3 self-end md:self-auto">
-          <button
-            onClick={() => updateActiveDraft({ isCoopMode: !activeDraft.isCoopMode })}
-            className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-colors shadow-sm min-h-[44px] ${
-              activeDraft.isCoopMode 
-                ? 'bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50 shadow-[0_0_15px_rgba(37,99,235,0.3)]' 
-                : 'bg-white/5 hover:bg-white/10 text-slate-300 border border-white/10'
-            }`}
-          >
-            <Users size={16} /> {activeDraft.isCoopMode ? 'Co-op Attivo' : 'Attiva Co-op'}
-          </button>
 
+        <div className="flex items-center gap-2 flex-wrap">
           <button
-            onClick={() => exportDraft(activeDraft)}
+            onClick={onExport}
             className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-xl text-xs font-semibold transition-colors min-h-[44px]"
-            title="Salva la bozza come file da inviare al collaboratore"
+            title="Salva la bozza come file da mandare agli altri"
           >
-            <Download size={16} /> Passa la bozza
+            <Download size={15} /> Passa la bozza
+          </button>
+          {owner && (
+            <button
+              onClick={doMerge}
+              className="flex items-center gap-2 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white border border-blue-400/50 rounded-xl text-xs font-semibold transition-colors min-h-[44px]"
+              title="Unisci tutti i blocchi nel testo finale"
+            >
+              <Merge size={15} /> Unisci
+            </button>
+          )}
+          <button
+            onClick={onDelete}
+            aria-label="Elimina bozza"
+            className="p-2.5 text-slate-500 hover:text-rose-400 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+          >
+            <Trash2 size={16} />
           </button>
         </div>
       </div>
 
-      {/* Editor + Beat Layout: 1 col on mobile (Editor first, then YouTube), 2 cols on desktop */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-6 lg:gap-8 min-h-0">
-        
-        {/* Lyrics Editor (Left Side on Desktop, Top on Mobile) */}
-        <div className="flex flex-col bg-white/[0.02] border border-slate-900 rounded-2xl overflow-hidden shadow-md relative min-h-[320px]">
-          <div className="px-4 py-3 bg-black/40 border-b border-slate-900 flex justify-between items-center shrink-0">
-            <span className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
-              {activeDraft.isCoopMode ? (bothReady ? 'Fase Unione Testi' : 'Scrittura a 4 Mani (Co-op)') : 'Testo della Canzone'}
-            </span>
-            <span className="text-xs text-slate-500 flex items-center gap-1.5">
-              <span className="w-1.5 h-1.5 rounded-full bg-blue-500 animate-pulse" />
-              Auto-salvato
-            </span>
-          </div>
-          
-          {!activeDraft.isCoopMode ? (
-            <textarea 
-              className="flex-1 w-full bg-transparent p-4 sm:p-6 focus:outline-none resize-none font-mono text-sm leading-relaxed text-slate-200 placeholder:text-slate-600 custom-scrollbar relative z-10 min-h-[250px]"
-              placeholder="Inizia a comporre le tue barre qui..."
-              value={activeDraft.lyrics}
-              onChange={(e) => updateActiveDraft({ lyrics: e.target.value })}
-            />
-          ) : bothReady ? (
-            /* Merge Phase (Stacked on mobile, side-by-side on desktop) */
-            <div className="flex-1 flex flex-col p-4 sm:p-6 gap-4 overflow-y-auto custom-scrollbar">
-              {isOwner ? (
-                <>
-                  <div className="flex flex-col md:flex-row gap-3 min-h-[160px]">
-                    <div className="flex-1 bg-black/40 rounded-xl p-3 overflow-y-auto custom-scrollbar border border-slate-800 shadow-inner">
-                      <div className="text-[10px] uppercase text-blue-400 font-bold mb-1">Le Tue Barre</div>
-                      <div className="font-mono text-xs text-slate-300 whitespace-pre-wrap">{myLyrics}</div>
-                    </div>
-                    <div className="flex-1 bg-black/40 rounded-xl p-3 overflow-y-auto custom-scrollbar border border-slate-800 shadow-inner">
-                      <div className="text-[10px] uppercase text-purple-400 font-bold mb-1">Barre del Feat</div>
-                      <div className="font-mono text-xs text-slate-300 whitespace-pre-wrap">{friendLyrics}</div>
-                    </div>
-                  </div>
-                  <textarea 
-                    className="flex-1 w-full bg-black/40 border border-slate-800 rounded-xl p-4 focus:outline-none resize-none font-mono text-sm leading-relaxed text-slate-200 placeholder:text-slate-600 custom-scrollbar shadow-inner min-h-[180px]"
-                    placeholder="Unisci e incastra le due parti nel testo definitivo..."
-                    value={activeDraft.lyrics}
-                    onChange={(e) => updateActiveDraft({ lyrics: e.target.value })}
-                  />
-                  <button 
-                    onClick={() => updateActiveDraft({ isCoopMode: false, ownerReady: false, collabReady: false })}
-                    className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold py-3 rounded-xl transition-colors shadow-lg border border-blue-400/30 flex items-center justify-center gap-2 text-sm min-h-[44px]"
-                  >
-                    <CheckCircle size={16} /> Finalizza Testo Unito
-                  </button>
-                </>
-              ) : (
-                <div className="flex-1 flex flex-col justify-center items-center text-center p-4">
-                  <Lock size={32} className="text-slate-600 mb-3" />
-                  <h3 className="text-base font-bold text-slate-200 mb-1">L'autore principale sta unendo il testo...</h3>
-                  <p className="text-slate-400 text-xs max-w-xs mb-4">
-                    Visualizzerai qui in tempo reale come vengono incastrate le rime.
-                  </p>
-                  <div className="w-full text-left bg-black/40 rounded-xl p-4 flex-1 overflow-y-auto custom-scrollbar border border-slate-800 shadow-inner min-h-[200px]">
-                    <div className="font-mono text-xs sm:text-sm text-slate-300 whitespace-pre-wrap">{activeDraft.lyrics}</div>
-                  </div>
-                </div>
-              )}
+      {notice && <NoticeBar notice={notice} onClose={() => setNotice(null)} />}
+
+      {!owner && (
+        <div className="mb-5 p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-start gap-2.5 text-xs text-slate-300">
+          <Users size={15} className="shrink-0 text-slate-400 mt-0.5" />
+          <p>
+            Questa bozza e&rsquo; di{' '}
+            <strong>{authorById.get(draft.ownerId)?.name ?? 'un altro autore'}</strong>.
+            Scrivi nei tuoi blocchi e rimandagliela: solo chi l&rsquo;ha creata puo&rsquo;
+            riorganizzare e unire il testo.
+          </p>
+        </div>
+      )}
+
+      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
+        {/* Blocchi */}
+        <div className="lg:col-span-2 flex flex-col gap-3 min-h-0 lg:overflow-y-auto custom-scrollbar lg:pr-1">
+          {draft.blocks.length === 0 && (
+            <div className="text-center text-slate-500 py-12 border border-slate-900 rounded-2xl bg-white/[0.02]">
+              <p className="text-sm">
+                Nessun blocco. {owner ? 'Aggiungine uno per iniziare.' : 'Aspetta che ne crei chi ha fatto la bozza.'}
+              </p>
             </div>
-          ) : (
-            /* Co-op Drafting: Stacked on mobile, side-by-side on desktop */
-            <div className="flex-1 flex flex-col md:flex-row gap-3 p-3 overflow-y-auto custom-scrollbar">
-              <div className="flex-1 flex flex-col bg-black/30 rounded-xl border border-slate-800 overflow-hidden min-h-[200px]">
-                <div className="px-3 py-2 border-b border-slate-800 bg-black/20 flex justify-between items-center shrink-0">
-                  <span className="text-xs font-bold text-blue-400 uppercase flex items-center gap-1.5">
-                    <PenTool size={13} /> Le Mie Barre
-                  </span>
-                  {myReady && <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-bold">PRONTO</span>}
+          )}
+
+          {draft.blocks.map(b => {
+            const author = b.authorId ? authorById.get(b.authorId) : null;
+            const c = author ? authorColor(author.colorIndex) : null;
+            const mine = canEditBlock(b, me);
+
+            return (
+              <div
+                key={b.id}
+                className={`border rounded-2xl overflow-hidden transition-colors ${
+                  mine && c ? `${c.border} bg-white/[0.03]` : 'border-slate-900 bg-white/[0.01]'
+                }`}
+              >
+                <div className="px-3.5 py-2.5 bg-black/40 border-b border-slate-900 flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2 min-w-0">
+                    {owner ? (
+                      <input
+                        type="text"
+                        value={b.label}
+                        onChange={e => onUpdateBlock(b.id, { label: e.target.value })}
+                        aria-label="Nome del blocco"
+                        className="bg-transparent text-xs font-bold uppercase tracking-wider text-slate-200 focus:outline-none focus:border-b focus:border-blue-500 w-28"
+                      />
+                    ) : (
+                      <span className="text-xs font-bold uppercase tracking-wider text-slate-200">{b.label}</span>
+                    )}
+
+                    {author && c ? (
+                      <span className={`text-[10px] px-2 py-0.5 rounded-full border flex items-center gap-1 shrink-0 ${c.soft} ${c.border} ${c.text}`}>
+                        <span className={`w-1.5 h-1.5 rounded-full ${c.dot}`} />
+                        {author.id === me ? 'tuo' : author.name}
+                      </span>
+                    ) : (
+                      <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400 shrink-0">
+                        libero
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {!b.authorId && (
+                      <button
+                        onClick={() => onUpdateBlock(b.id, { authorId: me })}
+                        className="text-[11px] px-2.5 py-1.5 bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 rounded-lg font-semibold transition-colors flex items-center gap-1 min-h-[32px]"
+                      >
+                        <Hand size={11} /> Lo prendo
+                      </button>
+                    )}
+                    {mine && b.text.trim() && (
+                      <button
+                        onClick={() => onUpdateBlock(b.id, { done: !b.done })}
+                        title={b.done ? 'Riapri il blocco' : 'Segna come finito'}
+                        className={`text-[11px] px-2.5 py-1.5 rounded-lg font-semibold transition-colors flex items-center gap-1 border min-h-[32px] ${
+                          b.done
+                            ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                            : 'bg-white/5 text-slate-400 border-white/10 hover:text-slate-200'
+                        }`}
+                      >
+                        <CheckCircle size={11} /> {b.done ? 'Finito' : 'Segna finito'}
+                      </button>
+                    )}
+                    {owner && (
+                      <button
+                        onClick={() => removeBlock(b.id)}
+                        aria-label={`Elimina blocco ${b.label}`}
+                        className="p-1.5 text-slate-600 hover:text-rose-400 transition-colors min-h-[32px] min-w-[32px] flex items-center justify-center"
+                      >
+                        <X size={14} />
+                      </button>
+                    )}
+                  </div>
                 </div>
-                <textarea 
-                  className={`flex-1 w-full bg-transparent p-3 focus:outline-none resize-none font-mono text-sm leading-relaxed text-slate-200 placeholder:text-slate-700 custom-scrollbar min-h-[140px] ${myReady ? 'opacity-50' : ''}`}
-                  placeholder="Scrivi le tue idee..."
-                  value={myLyrics}
-                  onChange={(e) => handleMyLyricsChange(e.target.value)}
-                  disabled={myReady}
+
+                {/*
+                  Tutti vedono il testo di tutti: e' la scelta presa. Chi non ha
+                  il blocco lo legge e basta, cosi' nessuno scrive sopra un altro.
+                */}
+                <textarea
+                  value={b.text}
+                  readOnly={!mine}
+                  onChange={e => onUpdateBlock(b.id, { text: e.target.value })}
+                  placeholder={mine ? 'Scrivi qui la tua parte...' : 'Ancora niente.'}
+                  rows={6}
+                  className={`w-full bg-transparent p-3.5 focus:outline-none resize-y font-mono text-sm leading-relaxed custom-scrollbar ${
+                    mine
+                      ? 'text-slate-200 placeholder:text-slate-600'
+                      : 'text-slate-400 cursor-default placeholder:text-slate-700'
+                  }`}
                 />
-                <div className="p-2.5 bg-black/40 border-t border-slate-800 shrink-0">
-                  <button 
-                    onClick={toggleReady}
-                    className={`w-full py-2.5 rounded-xl font-semibold text-xs transition-colors border min-h-[44px] ${
-                      myReady 
-                        ? 'bg-slate-800 hover:bg-slate-700 text-slate-300 border-slate-700' 
-                        : 'bg-green-600 hover:bg-green-500 text-white border-green-500/50 shadow-[0_0_10px_rgba(22,163,74,0.3)]'
-                    }`}
-                  >
-                    {myReady ? 'Annulla Pronto' : 'Pronto per Unire'}
-                  </button>
-                </div>
               </div>
-              
-              <div className="flex-1 flex flex-col bg-black/30 rounded-xl border border-slate-800 overflow-hidden min-h-[200px]">
-                <div className="px-3 py-2 border-b border-slate-800 bg-black/20 flex justify-between items-center shrink-0">
-                  <span className="text-xs font-bold text-purple-400 uppercase flex items-center gap-1.5">
-                    <Users size={13} /> Barre del Feat
-                  </span>
-                  {friendReady && <span className="text-[10px] bg-green-500/20 text-green-400 px-2 py-0.5 rounded font-bold">PRONTO</span>}
-                </div>
-                <div className="flex-1 w-full bg-transparent p-3 overflow-y-auto custom-scrollbar min-h-[140px]">
-                  {friendLyrics ? (
-                    <div className="font-mono text-sm leading-relaxed text-slate-300 whitespace-pre-wrap">{friendLyrics}</div>
-                  ) : (
-                    <div className="h-full flex items-center justify-center text-slate-600 italic text-xs font-mono py-8">
-                      In attesa che l'amico scriva...
-                    </div>
-                  )}
-                </div>
-                <div className="p-2.5 bg-black/40 border-t border-slate-800 flex items-center justify-center min-h-[44px] shrink-0">
-                  <span className={`text-xs font-medium flex items-center gap-1.5 ${friendReady ? 'text-green-400' : 'text-slate-500'}`}>
-                    {friendReady ? <><CheckCircle size={14} /> Feat pronto a unire</> : 'Feat sta componendo...'}
-                  </span>
-                </div>
-              </div>
-            </div>
+            );
+          })}
+
+          {owner && (
+            <button
+              onClick={addBlock}
+              className="border border-dashed border-slate-800 hover:border-blue-500/50 text-slate-400 hover:text-blue-400 rounded-2xl py-3.5 text-sm font-medium transition-colors flex items-center justify-center gap-2 min-h-[44px]"
+            >
+              <Plus size={16} /> Aggiungi blocco
+            </button>
           )}
         </div>
 
-        {/* Beat / Instrumental & YouTube Player (Right on Desktop, Below on Mobile) */}
-        <div className="flex flex-col gap-6">
-          
-          {/* Beat URL Input & Tunebat Controls */}
-          <div className="bg-white/[0.02] border border-slate-900 rounded-2xl p-4 sm:p-5 shadow-md space-y-4">
-            <div className="flex items-center justify-between">
-              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider">
-                Carica Base (YouTube o Beat URL)
-              </label>
-              {activeDraft.beatUrl && (
-                <button
-                  onClick={handleRemoveBeat}
-                  className="px-2.5 py-1 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 rounded-lg text-xs flex items-center gap-1 transition-colors min-h-[36px]"
-                  title="Rimuovi base audio"
-                >
-                  <Trash2 size={13} />
-                  <span>Rimuovi base</span>
-                </button>
-              )}
-            </div>
-
-            <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-2.5">
-              <div className="relative flex-1">
-                <Youtube className="absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                <input 
-                  type="text"
-                  className="w-full bg-black/50 border border-slate-900 rounded-xl pl-10 pr-8 py-2.5 text-sm focus:outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600 shadow-inner text-slate-200 min-h-[44px]"
-                  placeholder="https://youtube.com/watch?v=..."
-                  value={urlInput}
-                  onChange={(e) => setUrlInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLoadBeat()}
-                />
-                {urlInput && (
-                  <button
-                    onClick={() => setUrlInput('')}
-                    className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-500 hover:text-slate-300 min-h-[36px] min-w-[36px] flex items-center justify-center"
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
-              <button 
-                onClick={handleLoadBeat}
-                disabled={isDetectingTunebat}
-                className="bg-blue-600 hover:bg-blue-500 text-white px-5 py-2.5 rounded-xl text-xs font-semibold transition-colors whitespace-nowrap shadow-md border border-blue-400/50 flex items-center justify-center gap-1.5 disabled:opacity-50 min-h-[44px]"
+        {/* Colonna laterale: base e testo unito */}
+        <div className="flex flex-col gap-4 min-h-0">
+          <div className="bg-white/[0.02] border border-slate-900 rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              <Youtube size={14} className="text-rose-500" /> Base
+            </h3>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={urlInput}
+                onChange={e => setUrlInput(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && onUpdateDraft({ beatUrl: urlInput })}
+                aria-label="Link della base"
+                placeholder="Link YouTube della base"
+                className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 min-h-[40px]"
+              />
+              <button
+                onClick={() => onUpdateDraft({ beatUrl: urlInput })}
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-lg text-xs font-semibold min-h-[40px]"
               >
-                {isDetectingTunebat ? <RefreshCw size={14} className="animate-spin" /> : <Activity size={14} />}
-                <span>Carica & Auto-Detect</span>
+                Carica
               </button>
             </div>
 
-            {/* Estrazione da Tunebat: opzionale, e dichiarata. */}
-            <div className="flex flex-col gap-3 p-3 bg-black/40 border border-slate-800 rounded-xl">
-              <p className="text-[11px] text-amber-300/80">
-                <strong>Passa da terze parti.</strong> La richiesta viene inoltrata da{' '}
-                <code>api.allorigins.win</code>, un proxy pubblico non collegato a
-                TrappArchive: il link che incolli transita da lì. Non funziona offline.
-              </p>
-              <div className="flex items-center gap-2">
-                <input 
-                  type="text"
-                  placeholder="Incolla link Tunebat per auto-compilare..."
-                  value={tunebatInput}
-                  onChange={(e) => setTunebatInput(e.target.value)}
-                  onKeyDown={(e) => e.key === 'Enter' && handleLoadTunebatLink()}
-                  className="flex-1 bg-black/60 border border-slate-900 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500 transition-colors text-slate-300 min-h-[36px]"
+            {ytId ? (
+              <div className="aspect-video rounded-xl overflow-hidden border border-slate-900">
+                <iframe
+                  src={`https://www.youtube.com/embed/${ytId}`}
+                  title="Base"
+                  allow="accelerometer; clipboard-write; encrypted-media; gyroscope"
+                  allowFullScreen
+                  className="w-full h-full"
                 />
-                <button
-                  onClick={handleLoadTunebatLink}
-                  disabled={isDetectingTunebat || !tunebatInput}
-                  className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 min-h-[36px] flex items-center gap-1.5"
-                >
-                  {isDetectingTunebat ? <RefreshCw size={12} className="animate-spin" /> : <Activity size={12} />}
-                  <span>Estrai</span>
-                </button>
               </div>
+            ) : (
+              <p className="text-[11px] text-slate-500">
+                Nessuna base caricata. Il video parte da YouTube: serve la connessione.
+              </p>
+            )}
 
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-3">
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-mono text-slate-500">Tunebat BPM</span>
-                    <input
-                      type="number"
-                      value={activeDraft.bpm || 140}
-                      onChange={(e) => updateActiveDraft({ bpm: parseInt(e.target.value, 10) || 0 })}
-                      className="w-16 sm:w-20 bg-transparent text-sm font-mono font-bold text-blue-400 focus:outline-none border-b border-blue-500/30"
-                    />
-                  </div>
-                  <div className="w-px h-6 bg-slate-800" />
-                  <div className="flex flex-col">
-                    <span className="text-[10px] uppercase font-mono text-slate-500">Tunebat Key</span>
-                    <input
-                      type="text"
-                      value={activeDraft.key || 'C Minor'}
-                      onChange={(e) => updateActiveDraft({ key: e.target.value })}
-                      className="w-20 sm:w-24 bg-transparent text-sm font-mono font-bold text-purple-400 focus:outline-none border-b border-purple-500/30"
-                    />
-                  </div>
-                </div>
-
-                <a
-                  href={tunebatSearchUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="text-[11px] font-mono text-slate-400 hover:text-blue-400 flex items-center gap-1 px-3 py-2 bg-white/5 rounded-lg transition-colors border border-white/5 min-h-[36px]"
-                >
-                  <span className="hidden sm:inline">Cerca su</span> Tunebat
-                  <ExternalLink size={13} />
-                </a>
+            <div className="grid grid-cols-2 gap-2 pt-1">
+              <div>
+                <label htmlFor="draft-bpm" className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">BPM</label>
+                <input
+                  id="draft-bpm"
+                  type="number"
+                  value={draft.bpm ?? ''}
+                  onChange={e => onUpdateDraft({ bpm: parseInt(e.target.value, 10) || undefined })}
+                  placeholder="—"
+                  className="w-full bg-black/40 border border-slate-900 rounded-lg px-2.5 py-2 text-blue-400 font-mono text-sm focus:outline-none focus:border-blue-500 min-h-[40px]"
+                />
+              </div>
+              <div>
+                <label htmlFor="draft-key" className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Tonalita&rsquo;</label>
+                <input
+                  id="draft-key"
+                  type="text"
+                  value={draft.key ?? ''}
+                  onChange={e => onUpdateDraft({ key: e.target.value })}
+                  placeholder="—"
+                  className="w-full bg-black/40 border border-slate-900 rounded-lg px-2.5 py-2 text-purple-400 font-mono text-sm focus:outline-none focus:border-blue-500 min-h-[40px]"
+                />
               </div>
             </div>
+            <p className="text-[10px] text-slate-500">
+              Per calcolarli davvero, carica il file della base nella scheda della
+              traccia: l&rsquo;analisi gira sul dispositivo. Da un link YouTube l&rsquo;audio
+              non e&rsquo; leggibile.
+            </p>
           </div>
 
-          {/* YouTube Embed Player & Downloader Tools */}
-          <div className="flex flex-col gap-2 relative shrink-0">
-            {ytId && (
-              <div className="flex items-center justify-between px-1">
-                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Strumenti Audio (Gratis)</span>
-                <div className="flex gap-2">
-                  <a 
-                    href={`https://cobalt.tools`} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="px-2.5 py-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
-                    title="Scarica Audio tramite Cobalt.tools (Senza Pubblicità)"
-                  >
-                    <Download size={13} />
-                    <span className="hidden sm:inline">Scarica WAV/MP3</span>
-                  </a>
-                  <a 
-                    href={`https://vocalremover.org`} 
-                    target="_blank" 
-                    rel="noreferrer"
-                    className="px-2.5 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
-                    title="Rimuovi la voce tramite VocalRemover (Richiede il file audio)"
-                  >
-                    <MicOff size={13} />
-                    <span className="hidden sm:inline">Vocal Remover</span>
-                  </a>
-                </div>
-              </div>
-            )}
-            <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-900 shadow-lg relative shrink-0">
-              {ytId ? (
-                <iframe
-                  src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&loop=1&playlist=${ytId}&controls=1&modestbranding=1`}
-                  title="YouTube video player"
-                  className="absolute inset-0 w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                  allowFullScreen
-                />
-              ) : (
-                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 p-4 text-center">
-                  <Youtube className="w-12 h-12 mb-2 opacity-40 text-slate-500" />
-                  <p className="text-xs font-medium text-slate-400">Nessuna base inserita</p>
-                  <p className="text-[11px] text-slate-600 mt-0.5">Incolla un link YouTube per mandarla in loop mentre scrivi</p>
-                </div>
+          {/* Testo unito */}
+          <div className="bg-white/[0.02] border border-slate-900 rounded-2xl p-4 flex-1 flex flex-col min-h-[200px]">
+            <div className="flex items-center justify-between mb-2.5 gap-2">
+              <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Testo unito</h3>
+              {openBlocks > 0 && (
+                <span className="text-[10px] text-amber-400 shrink-0">{openBlocks} blocchi aperti</span>
               )}
             </div>
+
+            {draft.lyrics ? (
+              <pre className="flex-1 overflow-y-auto custom-scrollbar text-xs font-mono text-slate-300 whitespace-pre-wrap leading-relaxed">
+                {draft.lyrics}
+              </pre>
+            ) : (
+              <p className="text-[11px] text-slate-500 flex-1">
+                {owner
+                  ? 'Premi «Unisci» quando i blocchi sono pronti.'
+                  : 'Il testo unito lo produce chi ha creato la bozza.'}
+              </p>
+            )}
+
+            {onSendToTrack && draft.lyrics && (
+              <button
+                onClick={() => onSendToTrack(draft)}
+                className="mt-3 w-full bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors flex items-center justify-center gap-2 min-h-[44px]"
+              >
+                <ArrowRightToLine size={14} /> Porta in una traccia
+              </button>
+            )}
           </div>
         </div>
-
       </div>
 
-      {/* Delete Draft Confirmation Modal */}
-      {draftToDelete && (
-        <div className="fixed inset-0 z-50 bg-black/80 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-[#0b1120] border border-slate-800 rounded-2xl max-w-md w-full p-6 shadow-2xl animate-in fade-in duration-150">
-            <h3 className="text-lg font-bold text-slate-100 mb-2 flex items-center gap-2">
-              <AlertTriangle className="text-rose-500" size={20} />
-              Elimina Bozza
-            </h3>
-            <p className="text-sm text-slate-400 mb-6">
-              Sei sicuro di voler eliminare definitivamente il progetto <strong className="text-slate-200">"{draftToDelete.title}"</strong>?
-            </p>
-            <div className="flex items-center justify-end gap-3">
-              <button
-                onClick={() => setDraftToDelete(null)}
-                className="px-4 py-2.5 bg-white/5 hover:bg-white/10 text-slate-300 rounded-xl text-sm font-medium transition-colors min-h-[44px]"
-              >
-                Annulla
-              </button>
-              <button
-                onClick={confirmDeleteDraft}
-                className="px-4 py-2.5 bg-rose-600 hover:bg-rose-500 text-white rounded-xl text-sm font-medium transition-colors shadow-md min-h-[44px]"
-              >
-                Elimina Definitivamente
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      {deleteDialog}
     </div>
   );
 }

@@ -12,6 +12,13 @@ export type KeyProfileName = 'krumhansl' | 'temperley' | 'albrecht';
 export type TranscriptionLanguage = 'it' | 'en' | 'es' | 'fr' | 'auto';
 
 export interface AppSettings {
+  /**
+   * Identita' locale di chi scrive, per la collaborazione sulle bozze.
+   * Vive solo su questo dispositivo: nessun account, nessun server. Serve
+   * unicamente a sapere di chi e' un blocco quando le bozze si scambiano.
+   */
+  authorId: string;
+  authorName: string;
   /** Chiave API Gemini dell'utente. Stringa vuota = funzioni AI disattivate. */
   geminiApiKey: string;
   /** Id del modello Gemini. Modificabile a mano: i nomi cambiano nel tempo. */
@@ -38,6 +45,8 @@ export const SUGGESTED_GEMINI_MODELS = [
 ];
 
 export const DEFAULT_SETTINGS: AppSettings = {
+  authorId: '',
+  authorName: '',
   geminiApiKey: '',
   geminiModel: DEFAULT_GEMINI_MODEL,
   transcriptionLanguage: 'it',

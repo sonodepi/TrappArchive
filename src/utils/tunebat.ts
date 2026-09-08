@@ -104,55 +104,21 @@ export function parseBpmAndKeyFromText(text: string): Partial<TunebatAnalysisRes
  * Il motore corretto, con i suoi test, e’ in src/audio/.
  */
 
-export async function scrapeTunebatUrl(url: string): Promise<Partial<TunebatAnalysisResult> | null> {
-  if (!url || !url.includes('tunebat.com')) return null;
-  try {
-    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
-    const response = await fetch(proxyUrl);
-    if (!response.ok) return null;
-    
-    const data = await response.json();
-    const html = data.contents;
-    if (!html) return null;
-    
-    const result: Partial<TunebatAnalysisResult> = {};
-    
-    // Scrape BPM (e.g. <div ...>140</div> followed by BPM or similar, Tunebat usually has it in specific elements, but we can regex it)
-    // Actually, Tunebat has structured data or specific classes. Usually: <p class="attribute-value">140</p>
-    // Or we can just look for the first 2-3 digit number near "BPM"
-    const bpmMatch = html.match(/>(\d{2,3})<\/p>[^<]*<p[^>]*>BPM<\/p>/i) || html.match(/BPM[\s\S]{0,50}?(\d{2,3})/i);
-    if (bpmMatch && bpmMatch[1]) {
-      result.bpm = parseInt(bpmMatch[1], 10);
-    }
-    
-    // Scrape Key (e.g. C Minor, F# Major)
-    // Tunebat Camelot might be visible too.
-    const camelotMatch = html.match(/>([1-9]|1[0-2])[AB]<\/p>[^<]*<p[^>]*>Camelot<\/p>/i);
-    if (camelotMatch && camelotMatch[1]) {
-      const code = camelotMatch[1] + (html.match(/>([1-9]|1[0-2])([AB])<\/p>/i)?.[2] || 'A'); // rough extraction
-      result.camelot = code;
-    }
-    
-    const keyMatch = html.match(/>([A-G][#b]? (?:Major|Minor))<\/p>[^<]*<p[^>]*>Key<\/p>/i);
-    if (keyMatch && keyMatch[1]) {
-      result.key = keyMatch[1];
-    }
-    
-    if (result.bpm || result.key) {
-      result.source = 'tunebat-online';
-      result.tunebatUrl = url;
-      return result;
-    }
-  } catch (err) {
-    console.error('Tunebat scrape error:', err);
-  }
-  return null;
-}
-
-/**
- * Integrated Tunebat Auto-Compiler:
- * Tries online open metadata first, falls back to text parsing or audio analysis
+/*
+ * `scrapeTunebatUrl` e' stato rimosso.
+ *
+ * Scaricava l'HTML di una pagina Tunebat attraverso api.allorigins.win, un
+ * proxy pubblico di terze parti, e cercava BPM e tonalita' con espressioni
+ * regolari. Non poteva funzionare: Tunebat costruisce quei valori con
+ * JavaScript dopo che la pagina e' stata caricata, quindi l'HTML grezzo e' un
+ * guscio senza dati. In piu' faceva transitare da un operatore esterno il
+ * brano che l'utente stava cercando.
+ *
+ * Al suo posto: l'analisi locale in src/audio/, che misura davvero il file e
+ * non manda niente a nessuno, piu' `getTunebatSearchUrl` qui sotto per aprire
+ * la pagina vera e leggere i valori a mano.
  */
+
 export async function autoDetectTunebatData(params: {
   title?: string;
   artist?: string;

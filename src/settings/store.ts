@@ -9,13 +9,30 @@ import {
 export function loadSettings(): AppSettings {
   try {
     const raw = localStorage.getItem(SETTINGS_STORAGE_KEY);
-    if (!raw) return { ...DEFAULT_SETTINGS };
+    // Anche alla prima apertura serve un'identita': uscire di qui senza
+    // passare da withIdentity lasciava authorId vuoto per tutti, e due
+    // dispositivi diversi risultavano la stessa persona.
+    if (!raw) return withIdentity({ ...DEFAULT_SETTINGS });
     const parsed = JSON.parse(raw) as Partial<AppSettings>;
     // Merge sui default: una versione futura può aggiungere campi senza rompere.
-    return { ...DEFAULT_SETTINGS, ...parsed };
+    return withIdentity({ ...DEFAULT_SETTINGS, ...parsed });
   } catch {
-    return { ...DEFAULT_SETTINGS };
+    return withIdentity({ ...DEFAULT_SETTINGS });
   }
+}
+
+/**
+ * Garantisce un'identita' locale per la collaborazione sulle bozze.
+ *
+ * Viene generata al primo avvio e non lascia mai il dispositivo se non dentro
+ * una bozza che l'utente decide di esportare. Non e' un account: non c'e' nulla
+ * da registrare e nulla da verificare.
+ */
+function withIdentity(settings: AppSettings): AppSettings {
+  if (settings.authorId) return settings;
+  const withId = { ...settings, authorId: crypto.randomUUID() };
+  saveSettings(withId);
+  return withId;
 }
 
 export function saveSettings(settings: AppSettings): void {

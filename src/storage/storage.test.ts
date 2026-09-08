@@ -152,11 +152,26 @@ describe('bozze', () => {
     expect(draft).not.toHaveProperty('shareCode');
   });
 
-  it('conserva le due voci separate, che reggono lo scambio via file', () => {
+  it('converte le vecchie due colonne in blocchi, senza perdere testo', () => {
     const draft = parseDraft({
       id: 'd1', ownerLyrics: 'strofa mia', collaboratorLyrics: 'strofa sua',
     });
-    expect(draft!.ownerLyrics).toBe('strofa mia');
-    expect(draft!.collaboratorLyrics).toBe('strofa sua');
+    expect(draft!.blocks).toHaveLength(2);
+    expect(draft!.blocks.map(b => b.text)).toEqual(['strofa mia', 'strofa sua']);
+    expect(draft!.blocks[0].label).toBe('Strofa 1');
+  });
+
+  it('recupera anche il testo di chi scriveva da solo', () => {
+    const draft = parseDraft({ id: 'd1', lyrics: 'scritto per conto mio' });
+    expect(draft!.blocks).toHaveLength(1);
+    expect(draft!.blocks[0].text).toBe('scritto per conto mio');
+  });
+
+  it('non fa entrare piu’ di quattro persone', () => {
+    const draft = parseDraft({
+      id: 'd1',
+      authors: Array.from({ length: 9 }, (_, i) => ({ id: `a${i}`, name: `A${i}` })),
+    });
+    expect(draft!.authors).toHaveLength(4);
   });
 });

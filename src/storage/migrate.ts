@@ -7,7 +7,8 @@
  * dirlo all'utente invece di far sparire il catalogo in silenzio.
  */
 
-import type { Album, AudioSource, DraftProject, Track } from '../types';
+import type { Album, AudioSource, DraftAuthor, DraftBlock, DraftProject, Track } from '../types';
+import { MAX_AUTHORS } from '../types';
 
 export interface ParseResult<T> {
   items: T[];
@@ -102,20 +103,96 @@ export function parseAlbum(raw: unknown): Album | null {
   };
 }
 
+function parseAuthor(raw: unknown, index: number): DraftAuthor | null {
+  if (!isRecord(raw)) return null;
+  const id = asString(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    name: asString(raw.name, `Autore ${index + 1}`),
+    colorIndex: asNumber(raw.colorIndex, index),
+  };
+}
+
+function parseBlock(raw: unknown): DraftBlock | null {
+  if (!isRecord(raw)) return null;
+  const id = asString(raw.id);
+  if (!id) return null;
+  return {
+    id,
+    label: asString(raw.label, 'Blocco'),
+    authorId: typeof raw.authorId === 'string' && raw.authorId ? raw.authorId : null,
+    text: asString(raw.text),
+    done: raw.done === true,
+    updatedAt: asNumber(raw.updatedAt, Date.now()),
+  };
+}
+
+/**
+ * Converte una bozza a due colonne nel modello a blocchi.
+ *
+ * Il vecchio formato aveva `ownerLyrics` e `collaboratorLyrics`: due caselle
+ * fisse, quindi al massimo due persone e nessuna struttura interna. Diventano
+ * due blocchi, e il testo scritto non si perde.
+ */
+function blocksFromLegacy(raw: Record<string, unknown>, ownerId: string): DraftBlock[] {
+  const blocks: DraftBlock[] = [];
+  const updatedAt = asNumber(raw.updatedAt, Date.now());
+
+  const owner = asString(raw.ownerLyrics).trim();
+  const collab = asString(raw.collaboratorLyrics).trim();
+  const plain = asString(raw.lyrics).trim();
+
+  if (owner) {
+    blocks.push({
+      id: `${ownerId}-legacy-owner`, label: 'Strofa 1', authorId: ownerId,
+      text: owner, done: raw.ownerReady === true, updatedAt,
+    });
+  }
+  if (collab) {
+    blocks.push({
+      id: `${ownerId}-legacy-collab`, label: 'Strofa 2', authorId: null,
+      text: collab, done: raw.collabReady === true, updatedAt,
+    });
+  }
+  // Il campo `lyrics` singolo era il testo di chi scriveva da solo: si conserva
+  // solo se non e' gia' rappresentato dalle due colonne.
+  if (!blocks.length && plain) {
+    blocks.push({
+      id: `${ownerId}-legacy-lyrics`, label: 'Strofa 1', authorId: ownerId,
+      text: plain, done: false, updatedAt,
+    });
+  }
+  return blocks;
+}
+
 export function parseDraft(raw: unknown): DraftProject | null {
   if (!isRecord(raw)) return null;
   const id = asString(raw.id);
   if (!id) return null;
 
+  // Le bozze vecchie non hanno un proprietario: chi le apre e' chi le ha
+  // create, quindi l'id della bozza fa da proprietario stabile.
+  const ownerId = asString(raw.ownerId) || `legacy-${id}`;
+
+  const authors = Array.isArray(raw.authors)
+    ? raw.authors
+        .map((a, i) => parseAuthor(a, i))
+        .filter((a): a is DraftAuthor => a !== null)
+        .slice(0, MAX_AUTHORS)
+    : [];
+
+  const blocks = Array.isArray(raw.blocks)
+    ? raw.blocks.map(parseBlock).filter((b): b is DraftBlock => b !== null)
+    : blocksFromLegacy(raw, ownerId);
+
   return {
     id,
     title: asString(raw.title, 'Bozza senza titolo'),
     lyrics: asString(raw.lyrics),
-    ownerLyrics: asString(raw.ownerLyrics),
-    collaboratorLyrics: asString(raw.collaboratorLyrics),
-    isCoopMode: raw.isCoopMode === true,
-    ownerReady: raw.ownerReady === true,
-    collabReady: raw.collabReady === true,
+    ownerId,
+    authors,
+    blocks,
     beatUrl: asString(raw.beatUrl),
     updatedAt: asNumber(raw.updatedAt, Date.now()),
     bpm: typeof raw.bpm === 'number' ? raw.bpm : undefined,

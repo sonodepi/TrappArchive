@@ -213,9 +213,11 @@ export default function App() {
         {/* Scrollable Workspace View Container */}
         <div className="flex-1 overflow-y-auto custom-scrollbar relative min-h-0">
           {activeTab === 'working-on' && (
-            <WorkingOn 
-              drafts={drafts} 
-              setDrafts={setDrafts} 
+            <WorkingOn
+              drafts={drafts}
+              setDrafts={setDrafts}
+              settings={settings}
+              onUpdateSettings={updateSettings}
               onSendToTrack={(draft) => {
                 setDraftToTrack(draft);
                 setEditingTrack(null);

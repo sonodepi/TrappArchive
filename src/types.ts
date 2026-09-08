@@ -40,15 +40,48 @@ export interface Album {
   createdAt: number;
 }
 
+/** Numero massimo di persone su una bozza. Oltre, su telefono non si legge piu'. */
+export const MAX_AUTHORS = 4;
+
+/**
+ * Chi scrive. L'identita' e' locale al dispositivo: niente account, niente
+ * server. Serve solo a sapere di chi e' un blocco quando le bozze si scambiano.
+ */
+export interface DraftAuthor {
+  id: string;
+  name: string;
+  /** Indice della tavolozza, per distinguere i blocchi a colpo d'occhio. */
+  colorIndex: number;
+}
+
+/**
+ * Un blocco di testo: una strofa, un ritornello, una quartina.
+ *
+ * E' la divisione che impedisce a due persone di scrivere una sopra l'altra.
+ * Ognuno lavora sui propri blocchi, ma vede quelli di tutti.
+ */
+export interface DraftBlock {
+  id: string;
+  /** "Strofa 1", "Ritornello", ... */
+  label: string;
+  /** A chi e' assegnato. null = libero, lo prende chi vuole. */
+  authorId: string | null;
+  text: string;
+  /** L'autore dichiara chiuso il blocco. */
+  done: boolean;
+  /** Ultima modifica: decide chi vince quando due versioni si incontrano. */
+  updatedAt: number;
+}
+
 export interface DraftProject {
   id: string;
   title: string;
+  /** Testo unito: lo produce il capo con "Unisci". */
   lyrics: string;
-  ownerLyrics?: string;
-  collaboratorLyrics?: string;
-  isCoopMode?: boolean;
-  ownerReady?: boolean;
-  collabReady?: boolean;
+  /** Chi ha creato la bozza. Solo lui puo' unire e riorganizzare. */
+  ownerId: string;
+  authors: DraftAuthor[];
+  blocks: DraftBlock[];
   beatUrl: string;
   updatedAt: number;
   bpm?: number;

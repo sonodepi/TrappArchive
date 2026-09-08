@@ -2,10 +2,10 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Track, DraftProject } from '../types';
 import {
   Save, Folder, AlertCircle, Plus, Minus, Trash2,
-  ExternalLink, Activity, Music2, RefreshCw, CheckCircle2,
+  ExternalLink, Music2, RefreshCw, CheckCircle2,
   Loader2, KeyRound, Gauge, StopCircle, AlertTriangle, Wand2,
 } from 'lucide-react';
-import { getTunebatSearchUrl, scrapeTunebatUrl } from '../utils/tunebat';
+import { getTunebatSearchUrl } from '../utils/tunebat';
 import { analyzeAudio, confidenceLabel, type AudioAnalysis } from '../audio/analyze';
 import { AudioStoreError, deleteAudio, putAudio } from '../storage/audioStore';
 import { loadAudioBlob } from '../storage/audioAccess';
@@ -68,9 +68,6 @@ export function TrackEditor({
   const [transcribeError, setTranscribeError] = useState<string | null>(null);
   const [pendingLyrics, setPendingLyrics] = useState<PendingLyrics>(null);
 
-  const [tunebatNotice, setTunebatNotice] = useState<string | null>(null);
-  const [tunebatInput, setTunebatInput] = useState<string>('');
-  const [showTunebatScrape, setShowTunebatScrape] = useState(false);
   const [titleError, setTitleError] = useState(false);
 
   const aiReady = hasAiCredentials(settings);
@@ -205,31 +202,6 @@ export function TrackEditor({
     setPendingLyrics(null);
   };
 
-  /**
-   * Estrazione manuale da un link Tunebat. Retrocessa a conferma su richiesta:
-   * passa da un proxy pubblico di terze parti e non funziona offline, mentre
-   * l'analisi locale qui sopra è sempre disponibile.
-   */
-  const handleScrapeTunebat = async () => {
-    if (!tunebatInput) return;
-    setTunebatNotice(null);
-    try {
-      const result = await scrapeTunebatUrl(tunebatInput);
-      if (result) {
-        setTrack(prev => ({
-          ...prev,
-          bpm: result.bpm || prev.bpm,
-          key: result.key || prev.key,
-        }));
-        setTunebatNotice(`Tunebat: ${result.bpm ?? '?'} BPM - ${result.key ?? '?'}`);
-      } else {
-        setTunebatNotice('Impossibile estrarre i dati da questo link.');
-      }
-    } catch {
-      setTunebatNotice("Errore durante l'estrazione da Tunebat.");
-    }
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -281,7 +253,6 @@ export function TrackEditor({
     setTrack(prev => ({ ...prev, audio: undefined, durationMs: 0 }));
     setAnalysis(null);
     setAnalysisError(null);
-    setTunebatNotice(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
@@ -537,65 +508,22 @@ export function TrackEditor({
               </div>
             </div>
 
-            {/* Verifica manuale su Tunebat: opzionale, e onesta sui suoi limiti. */}
-            <div className="pt-1">
-              <button
-                type="button"
-                onClick={() => setShowTunebatScrape(v => !v)}
-                className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors flex items-center gap-1.5"
-              >
-                <ExternalLink size={12} />
-                {showTunebatScrape ? 'Nascondi' : 'Confronta con Tunebat (richiede rete)'}
-              </button>
-
-              {showTunebatScrape && (
-                <div className="mt-2.5 space-y-2">
-                  <p className="text-[11px] text-amber-300/80">
-                    <strong>Passa da terze parti.</strong> Per aggirare le restrizioni
-                    del browser la richiesta viene inoltrata da <code>api.allorigins.win</code>,
-                    un proxy pubblico non collegato a TrappArchive: l&rsquo;indirizzo che
-                    incolli, e quindi il brano che stai cercando, transita da lì. Non
-                    funziona offline e può smettere di funzionare senza preavviso.
-                    L&rsquo;analisi qui sopra non invia nulla a nessuno.
-                  </p>
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      placeholder="Incolla un link tunebat.com"
-                      value={tunebatInput}
-                      onChange={e => setTunebatInput(e.target.value)}
-                      onKeyDown={e => e.key === 'Enter' && handleScrapeTunebat()}
-                      aria-label="Link Tunebat"
-                      className="flex-1 bg-black/60 border border-slate-900 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500 transition-colors text-slate-300 min-h-[36px]"
-                    />
-                    <button
-                      type="button"
-                      onClick={handleScrapeTunebat}
-                      disabled={!tunebatInput}
-                      className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-40 min-h-[36px] flex items-center gap-1.5"
-                    >
-                      <Activity size={12} />
-                      <span>Estrai</span>
-                    </button>
-                    <a
-                      href={getTunebatSearchUrl(track.title || '', track.mainArtist || '')}
-                      target="_blank"
-                      rel="noreferrer"
-                      aria-label="Cerca su Tunebat.com"
-                      className="p-2 text-slate-400 hover:text-blue-400 transition-colors"
-                    >
-                      <ExternalLink size={14} />
-                    </a>
-                  </div>
-                  {tunebatNotice && (
-                    <div className="p-2.5 bg-slate-900/60 border border-slate-800 rounded-xl flex items-center gap-2 text-xs text-slate-300">
-                      <CheckCircle2 size={14} className="shrink-0 text-slate-400" />
-                      <span>{tunebatNotice}</span>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
+            {/*
+              Tunebat resta come link, non come estrazione automatica.
+              Il sito costruisce BPM e tonalita' con JavaScript dopo che la
+              pagina e' arrivata: scaricando l'HTML si ottiene un guscio vuoto,
+              quindi l'estrazione non poteva funzionare. Il link invece porta
+              alla pagina vera, dove i valori si leggono e si copiano qui sopra.
+            */}
+            <a
+              href={getTunebatSearchUrl(track.title || '', track.mainArtist || '')}
+              target="_blank"
+              rel="noreferrer"
+              className="text-[11px] text-slate-500 hover:text-slate-300 transition-colors inline-flex items-center gap-1.5 pt-1"
+            >
+              <ExternalLink size={12} />
+              Confronta su Tunebat.com
+            </a>
           </div>
 
           {/* Audio File Selection & Removal */}
