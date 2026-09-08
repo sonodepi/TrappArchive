@@ -1,0 +1,65 @@
+name: Pubblica su GitHub Pages
+
+# Ogni push sul ramo pubblica una nuova versione dell'app.
+# L'indirizzo risultante e' https://sonodepi.github.io/TrappArchive/ e da li'
+# si installa sul telefono: Android con Chrome, iPhone con Safari.
+#
+# Il sito e' statico: GitHub serve solo i file, non c'e' nessun server che
+# vede o conserva i dati. Catalogo, testi e file audio restano nel browser.
+
+on:
+  push:
+    branches:
+      - main
+      - claude/trapparchive-app-review-x38gkz
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# Una pubblicazione alla volta; le altre aspettano invece di sovrapporsi.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Installa le dipendenze
+        run: bun install --frozen-lockfile
+
+      - name: Controlla i tipi
+        run: bunx tsc --noEmit
+
+      - name: Esegui i test
+        run: bunx vitest run
+
+      # Il percorso deve combaciare con quello da cui Pages serve il sito,
+      # altrimenti l'app carica una pagina bianca.
+      - name: Costruisci
+        run: bunx vite build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

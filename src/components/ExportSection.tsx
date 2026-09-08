@@ -1,22 +1,40 @@
 import React, { useRef, useState } from 'react';
-import { Album, Track } from '../types';
-import { 
-  Download, Upload, Disc, Music2, Library, 
-  CheckCircle2, FileJson, Laptop, Smartphone, Wifi, HardDrive, Sparkles 
+import { Album, DraftProject, Track } from '../types';
+import {
+  Download, Upload, Disc, Music2, Library,
+  CheckCircle2, Laptop, Smartphone, Wifi, HardDrive, Sparkles, AlertTriangle,
 } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
+import { parseAlbum, parseDraft, parseList, parseTrack } from '../storage/migrate';
 
-export function ExportSection({ 
-  albums, 
-  tracks,
-}: { 
-  albums: Album[]; 
+/** Riepilogo di cosa contiene un file, mostrato prima di importarlo. */
+interface PendingImport {
+  fileName: string;
   tracks: Track[];
+  albums: Album[];
+  drafts: DraftProject[];
+  /** Voci presenti nel file ma inutilizzabili. */
+  skipped: number;
+  /** Voci gia' presenti nel catalogo, che non verranno duplicate. */
+  duplicates: number;
+}
+
+export function ExportSection({
+  albums,
+  tracks,
+  drafts,
+  onImport,
+}: {
+  albums: Album[];
+  tracks: Track[];
+  drafts: DraftProject[];
+  onImport: (data: { tracks: Track[]; albums: Album[]; drafts: DraftProject[] }) => void;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const [importNotice, setImportNotice] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
+  const [pending, setPending] = useState<PendingImport | null>(null);
 
-  const downloadJson = (data: any, filename: string) => {
+  const downloadJson = (data: unknown, filename: string) => {
     const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -32,72 +50,132 @@ export function ExportSection({
     const populatedTracks = album.trackIds
       .map(id => tracks.find(t => t.id === id))
       .filter(Boolean);
-    
-    const exportData = {
-      ...album,
-      tracks: populatedTracks,
-    };
-    downloadJson(exportData, `trapparchive_album_${album.title.replace(/\s+/g, '_').toLowerCase()}.json`);
+
+    downloadJson(
+      { ...album, tracks: populatedTracks },
+      `trapparchive_album_${album.title.replace(/\s+/g, '_').toLowerCase()}.json`,
+    );
   };
 
   const exportTrack = (track: Track) => {
-    downloadJson(track, `trapparchive_track_${(track.title || 'untitled').replace(/\s+/g, '_').toLowerCase()}.json`);
+    downloadJson(
+      track,
+      `trapparchive_track_${(track.title || 'untitled').replace(/\s+/g, '_').toLowerCase()}.json`,
+    );
   };
 
   const exportFullCatalog = () => {
-    const drafts = JSON.parse(localStorage.getItem('trapparchive_drafts') || '[]');
-    downloadJson({ 
-      app: 'TrappArchive',
-      version: '2.0',
-      exportedAt: new Date().toISOString(),
-      albums, 
-      tracks,
-      drafts
-    }, `trapparchive_full_catalog_${Date.now()}.json`);
+    downloadJson(
+      {
+        app: 'TrappArchive',
+        version: '2.0',
+        exportedAt: new Date().toISOString(),
+        albums,
+        tracks,
+        drafts,
+      },
+      `trapparchive_full_catalog_${Date.now()}.json`,
+    );
   };
 
-  // Import JSON Catalog
+  /**
+   * Legge e valida un backup senza applicarlo.
+   *
+   * Il codice precedente si accontentava di un JSON sintatticamente valido,
+   * scriveva direttamente in localStorage e dichiarava "completata con
+   * successo" a prescindere dall'esito. Qui il file viene prima verificato e
+   * riassunto, e l'utente conferma sapendo cosa succedera'.
+   */
   const handleImportFile = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    // Permette di riselezionare lo stesso file dopo un annullamento.
+    e.target.value = '';
 
+    setImportNotice(null);
     const reader = new FileReader();
-    reader.onload = (event) => {
+
+    reader.onerror = () =>
+      setImportNotice({ kind: 'error', text: 'Impossibile leggere il file selezionato.' });
+
+    reader.onload = event => {
+      let parsed: unknown;
       try {
-        const content = event.target?.result as string;
-        const parsed = JSON.parse(content);
-
-        let importedTracksCount = 0;
-        let importedAlbumsCount = 0;
-
-        if (Array.isArray(parsed.tracks)) {
-          const currentTracks: Track[] = JSON.parse(localStorage.getItem('trapparchive_tracks') || '[]');
-          const trackIds = new Set(currentTracks.map(t => t.id));
-          const toAdd = parsed.tracks.filter((t: Track) => !trackIds.has(t.id));
-          const updated = [...currentTracks, ...toAdd];
-          localStorage.setItem('trapparchive_tracks', JSON.stringify(updated));
-          importedTracksCount = toAdd.length;
-        }
-
-        if (Array.isArray(parsed.albums)) {
-          const currentAlbums: Album[] = JSON.parse(localStorage.getItem('trapparchive_albums') || '[]');
-          const albumIds = new Set(currentAlbums.map(a => a.id));
-          const toAdd = parsed.albums.filter((a: Album) => !albumIds.has(a.id));
-          const updated = [...currentAlbums, ...toAdd];
-          localStorage.setItem('trapparchive_albums', JSON.stringify(updated));
-          importedAlbumsCount = toAdd.length;
-        }
-
-        setImportNotice(`Importazione completata con successo: +${importedTracksCount} tracce, +${importedAlbumsCount} album. Ricarica la pagina se necessario.`);
-        
-        // Trigger storage event so other tabs and App update
-        window.dispatchEvent(new Event('storage'));
-      } catch (err) {
-        console.error('Import error:', err);
-        setImportNotice('Errore durante la lettura del file JSON. Assicurati che sia un backup valido di TrappArchive.');
+        parsed = JSON.parse(String(event.target?.result ?? ''));
+      } catch {
+        setImportNotice({
+          kind: 'error',
+          text: 'Il file non e\u2019 un JSON valido. Il catalogo non e\u2019 stato modificato.',
+        });
+        return;
       }
+
+      if (typeof parsed !== 'object' || parsed === null) {
+        setImportNotice({
+          kind: 'error',
+          text: 'Il file non ha la struttura di un backup TrappArchive. Il catalogo non e\u2019 stato modificato.',
+        });
+        return;
+      }
+
+      const raw = parsed as Record<string, unknown>;
+      const hasAnyCollection =
+        Array.isArray(raw.tracks) || Array.isArray(raw.albums) || Array.isArray(raw.drafts);
+      if (!hasAnyCollection) {
+        setImportNotice({
+          kind: 'error',
+          text: 'Nel file non ci sono tracce, album o bozze da importare. Il catalogo non e\u2019 stato modificato.',
+        });
+        return;
+      }
+
+      const parsedTracks = parseList(raw.tracks, parseTrack);
+      const parsedAlbums = parseList(raw.albums, parseAlbum);
+      const parsedDrafts = parseList(raw.drafts, parseDraft);
+
+      const knownTracks = new Set(tracks.map(t => t.id));
+      const knownAlbums = new Set(albums.map(a => a.id));
+      const knownDrafts = new Set(drafts.map(d => d.id));
+
+      const newTracks = parsedTracks.items.filter(t => !knownTracks.has(t.id));
+      const newAlbums = parsedAlbums.items.filter(a => !knownAlbums.has(a.id));
+      const newDrafts = parsedDrafts.items.filter(d => !knownDrafts.has(d.id));
+
+      const duplicates =
+        parsedTracks.items.length - newTracks.length +
+        (parsedAlbums.items.length - newAlbums.length) +
+        (parsedDrafts.items.length - newDrafts.length);
+
+      setPending({
+        fileName: file.name,
+        tracks: newTracks,
+        albums: newAlbums,
+        drafts: newDrafts,
+        skipped: parsedTracks.skipped + parsedAlbums.skipped + parsedDrafts.skipped,
+        duplicates,
+      });
     };
+
     reader.readAsText(file);
+  };
+
+  /** Applica l'import confermato e riporta numeri reali, contati qui. */
+  const confirmImport = () => {
+    if (!pending) return;
+    const { tracks: t, albums: a, drafts: d, duplicates, skipped } = pending;
+    onImport({ tracks: t, albums: a, drafts: d });
+
+    const added = t.length + a.length + d.length;
+    const parts = [
+      added === 0
+        ? 'Nessuna voce nuova da importare'
+        : `Importate ${t.length} tracce, ${a.length} album e ${d.length} bozze`,
+    ];
+    if (duplicates > 0) parts.push(`${duplicates} gia\u2019 presenti, non duplicate`);
+    if (skipped > 0) parts.push(`${skipped} scartate perche\u2019 incomplete`);
+
+    setImportNotice({ kind: added === 0 ? 'error' : 'ok', text: `${parts.join('. ')}.` });
+    setPending(null);
   };
 
   return (
@@ -109,27 +187,84 @@ export function ExportSection({
           Export & Backup Center
         </h2>
         <p className="text-xs sm:text-sm text-slate-400 mt-1">
-          Scarica i backup del catalogo in formato JSON locale o sincronizza con Google Drive.
+          Salva e ripristina il catalogo con file JSON sul tuo dispositivo.
         </p>
       </div>
 
       {importNotice && (
-        <div className="mb-6 p-4 bg-blue-950/40 border border-blue-500/40 rounded-2xl flex items-center gap-3 text-xs sm:text-sm text-blue-200 shrink-0">
-          <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />
-          <span className="flex-1">{importNotice}</span>
-          <button 
+        <div
+          className={`mb-6 p-4 border rounded-2xl flex items-center gap-3 text-xs sm:text-sm shrink-0 ${
+            importNotice.kind === 'ok'
+              ? 'bg-blue-950/40 border-blue-500/40 text-blue-200'
+              : 'bg-amber-950/40 border-amber-500/40 text-amber-100'
+          }`}
+        >
+          {importNotice.kind === 'ok' ? (
+            <CheckCircle2 className="w-5 h-5 text-blue-400 shrink-0" />
+          ) : (
+            <AlertTriangle className="w-5 h-5 text-amber-400 shrink-0" />
+          )}
+          <span className="flex-1">{importNotice.text}</span>
+          <button
             onClick={() => setImportNotice(null)}
-            className="text-xs text-blue-400 hover:text-white px-2 py-1 rounded bg-white/5"
+            className="text-xs hover:text-white px-2 py-1 rounded bg-white/5 min-h-[32px]"
           >
             Chiudi
           </button>
         </div>
       )}
 
+      {/* Conferma dell'import: l'utente vede cosa sta per succedere prima che succeda. */}
+      {pending && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-4">
+          <div className="w-full max-w-md bg-[#0a0f1c] border border-slate-800 rounded-2xl p-5 shadow-2xl space-y-4">
+            <h3 className="text-base font-bold text-slate-100">Confermi l&rsquo;importazione?</h3>
+            <p className="text-xs text-slate-400 break-all">Da: {pending.fileName}</p>
+
+            <ul className="text-sm text-slate-200 space-y-1.5">
+              <li>Tracce da aggiungere: <strong>{pending.tracks.length}</strong></li>
+              <li>Album da aggiungere: <strong>{pending.albums.length}</strong></li>
+              <li>Bozze da aggiungere: <strong>{pending.drafts.length}</strong></li>
+            </ul>
+
+            {(pending.duplicates > 0 || pending.skipped > 0) && (
+              <div className="text-xs text-slate-400 space-y-1 border-t border-slate-800 pt-3">
+                {pending.duplicates > 0 && (
+                  <p>{pending.duplicates} voci sono gi&agrave; nel catalogo e verranno ignorate.</p>
+                )}
+                {pending.skipped > 0 && (
+                  <p>{pending.skipped} voci del file sono incomplete e verranno scartate.</p>
+                )}
+              </div>
+            )}
+
+            <p className="text-xs text-slate-500">
+              Nulla viene sostituito: le voci esistenti restano come sono.
+            </p>
+
+            <div className="flex items-center justify-end gap-2 pt-1">
+              <button
+                onClick={() => setPending(null)}
+                className="px-4 py-2.5 text-slate-300 hover:text-white rounded-xl text-sm transition-colors min-h-[44px]"
+              >
+                Annulla
+              </button>
+              <button
+                onClick={confirmImport}
+                disabled={pending.tracks.length + pending.albums.length + pending.drafts.length === 0}
+                className="px-4 py-2.5 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-xl text-sm font-semibold transition-colors min-h-[44px]"
+              >
+                Importa
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Grid: 1 col on mobile, 2 cols on tablet, 3 cols on desktop */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 flex-1 min-h-0">
         
-        {/* Card 1: Full Database Backup & Google Drive */}
+        {/* Card 1: backup completo del catalogo, su file locale */}
         <div className="col-span-1 md:col-span-2 lg:col-span-3 bg-white/[0.02] border border-slate-900 rounded-2xl p-4 md:p-6 shadow-md flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 shrink-0">
           <div className="flex items-center gap-4">
             <div className="w-12 h-12 bg-black border border-slate-800 rounded-xl flex items-center justify-center shrink-0 shadow-inner">

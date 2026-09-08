@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Disc, Plus, Library, AlignLeft, Download, ChevronRight, ChevronLeft, HardDrive } from 'lucide-react';
+import { Disc, Plus, Library, AlignLeft, Download, ChevronRight, ChevronLeft, HardDrive, Settings } from 'lucide-react';
 import { PWAInstallButton } from './PWAInstallButton';
 
 export interface NavTabItem {
@@ -16,6 +16,13 @@ export const NAV_ITEMS: NavTabItem[] = [
   { id: 'albums', label: 'Album & Raccolte', shortLabel: 'Album', icon: Disc },
   { id: 'export', label: 'Esporta & Backup', shortLabel: 'Backup', icon: Download },
 ];
+
+export const SETTINGS_ITEM: NavTabItem = {
+  id: 'settings',
+  label: 'Impostazioni',
+  shortLabel: 'Config',
+  icon: Settings,
+};
 
 export function Sidebar({ 
   activeTab, 
@@ -93,17 +100,32 @@ export function Sidebar({
         })}
       </nav>
 
-      {/* Footer: PWA App Installation & Local Storage Status */}
+      {/* Footer: Impostazioni, installazione PWA e stato dell'archivio locale */}
       <div className="p-3 lg:p-4 border-t border-slate-900/80 bg-black/40 shrink-0 space-y-2">
-        {isTabletExpanded || true ? (
-          <div className="hidden lg:block space-y-2">
-            <PWAInstallButton variant="sidebar" />
-            <div className="flex items-center gap-2 px-1 text-[11px] text-slate-500">
-              <HardDrive size={12} className="text-slate-400 shrink-0" />
-              <span className="truncate">Archivio 100% locale & offline</span>
-            </div>
+        <button
+          onClick={() => setActiveTab(SETTINGS_ITEM.id)}
+          title={SETTINGS_ITEM.label}
+          className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all min-h-[44px] ${
+            isTabletExpanded ? 'justify-start' : 'justify-center lg:justify-start'
+          } ${
+            activeTab === SETTINGS_ITEM.id
+              ? 'bg-blue-600/20 text-blue-400 font-semibold border border-blue-500/40'
+              : 'text-slate-400 hover:text-slate-200 hover:bg-white/[0.04] border border-transparent'
+          }`}
+        >
+          <Settings size={20} className="shrink-0" />
+          <span className={`text-sm truncate ${isTabletExpanded ? 'block' : 'hidden lg:block'}`}>
+            {SETTINGS_ITEM.label}
+          </span>
+        </button>
+
+        <div className="hidden lg:block space-y-2">
+          <PWAInstallButton variant="sidebar" />
+          <div className="flex items-center gap-2 px-1 text-[11px] text-slate-500">
+            <HardDrive size={12} className="text-slate-400 shrink-0" />
+            <span className="truncate">Archivio 100% locale & offline</span>
           </div>
-        ) : null}
+        </div>
 
         {/* Compact version for collapsed tablet */}
         <div className="lg:hidden flex justify-center">
