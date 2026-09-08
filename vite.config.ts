@@ -4,8 +4,20 @@ import path from 'path';
 import { defineConfig } from 'vite';
 import { VitePWA } from 'vite-plugin-pwa';
 
+/**
+ * Percorso da cui l'app viene servita.
+ *
+ * Su GitHub Pages il sito sta sotto /TrappArchive/, dentro l'app nativa
+ * (Capacitor) sta invece alla radice. Un percorso assoluto cablato romperebbe
+ * uno dei due, quindi lo decide chi costruisce:
+ *   BASE_PATH=/TrappArchive/ npm run build   -> web
+ *   npm run build                            -> app nativa e sviluppo
+ */
+const base = process.env.BASE_PATH || '/';
+
 export default defineConfig(() => {
   return {
+    base,
     plugins: [
       react(),
       tailwindcss(),
@@ -20,7 +32,7 @@ export default defineConfig(() => {
           'pwa-maskable-512x512.png',
         ],
         manifest: {
-          id: '/',
+          id: './',
           name: 'TrappArchive',
           short_name: 'TrappArchive',
           description: 'Catalogo musicale personale, gestione tracce, album, testi e bozze collaborative.',
@@ -28,35 +40,35 @@ export default defineConfig(() => {
           background_color: '#060b19',
           display: 'standalone',
           orientation: 'portrait-primary',
-          start_url: '/',
-          scope: '/',
+          start_url: './',
+          scope: './',
           icons: [
             {
-              src: '/pwa-192x192.png',
+              src: 'pwa-192x192.png',
               sizes: '192x192',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-512x512.png',
+              src: 'pwa-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'any',
             },
             {
-              src: '/pwa-maskable-512x512.png',
+              src: 'pwa-maskable-512x512.png',
               sizes: '512x512',
               type: 'image/png',
               purpose: 'maskable',
             },
             {
-              src: '/icon-192.svg',
+              src: 'icon-192.svg',
               sizes: '192x192',
               type: 'image/svg+xml',
               purpose: 'any',
             },
             {
-              src: '/icon-512.svg',
+              src: 'icon-512.svg',
               sizes: '512x512',
               type: 'image/svg+xml',
               purpose: 'any',

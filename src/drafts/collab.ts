@@ -175,18 +175,18 @@ export function describeMerge(report: MergeReport): string {
   if (report.updated > 0) parts.push(`${report.updated} blocchi aggiornati`);
   if (report.added > 0) parts.push(`${report.added} blocchi nuovi`);
   if (report.newAuthors > 0) parts.push(`${report.newAuthors} autori aggiunti`);
-  if (parts.length === 0) parts.push('nessuna novita’ rispetto alla tua copia');
+  if (parts.length === 0) parts.push('nessuna novità rispetto alla tua copia');
 
   let text = `${parts.join(', ')}.`;
   if (report.conflicts.length > 0) {
     text += ` Attenzione: ${report.conflicts.join(', ')} ${
       report.conflicts.length === 1 ? 'era stato modificato' : 'erano stati modificati'
-    } da entrambi, ha vinto la versione piu’ recente.`;
+    } da entrambi, ha vinto la versione più recente.`;
   }
   if (report.rejectedAuthors.length > 0) {
     text += ` ${report.rejectedAuthors.join(', ')} non ${
-      report.rejectedAuthors.length === 1 ? 'e’ entrato' : 'sono entrati'
-    }: la bozza e’ gia’ al massimo di ${MAX_AUTHORS} persone.`;
+      report.rejectedAuthors.length === 1 ? 'è entrato' : 'sono entrati'
+    }: la bozza è già al massimo di ${MAX_AUTHORS} persone.`;
   }
   return text;
 }

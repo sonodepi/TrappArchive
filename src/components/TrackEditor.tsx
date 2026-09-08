@@ -609,7 +609,7 @@ export function TrackEditor({
               <div className="flex items-start gap-2 text-xs text-amber-100 bg-amber-950/30 border border-amber-500/30 rounded-xl px-3 py-2">
                 <AlertTriangle size={14} className="shrink-0 text-amber-400 mt-0.5" />
                 <span>
-                  Il file audio di questa traccia non e&rsquo; piu&rsquo; disponibile
+                  Il file audio di questa traccia non è più disponibile
                   {track.audio.name ? ` (${track.audio.name})` : ''}. Ricaricalo con
                   &laquo;Sfoglia file&raquo;: testo e metadati sono rimasti intatti.
                 </span>

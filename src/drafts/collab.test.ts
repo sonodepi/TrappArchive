@@ -159,7 +159,7 @@ describe('fusione di due copie della stessa bozza', () => {
     const report = mergeDrafts(uguale, uguale);
     expect(report.updated).toBe(0);
     expect(report.added).toBe(0);
-    expect(describeMerge(report)).toContain('nessuna novita');
+    expect(describeMerge(report)).toContain('nessuna novità');
   });
 
   it('conserva titolo e base di chi possiede la bozza', () => {

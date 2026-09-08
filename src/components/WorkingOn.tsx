@@ -98,7 +98,7 @@ export function WorkingOn({
       try {
         parsed = JSON.parse(String(event.target?.result ?? ''));
       } catch {
-        setNotice({ kind: 'error', text: 'Il file non e’ un JSON valido.' });
+        setNotice({ kind: 'error', text: 'Il file non è un JSON valido.' });
         return;
       }
 
@@ -128,7 +128,7 @@ export function WorkingOn({
           kind: 'ok',
           text: hasRoom || incoming.authors.some(a => a.id === me)
             ? `Sei entrato in "${joined.title}".`
-            : `Aperta "${joined.title}" in sola lettura: e’ gia’ al massimo di ${MAX_AUTHORS} persone.`,
+            : `Aperta "${joined.title}" in sola lettura: è già al massimo di ${MAX_AUTHORS} persone.`,
         });
         return;
       }
@@ -194,8 +194,8 @@ export function WorkingOn({
           />
 
           <p className="text-[11px] text-slate-500">
-            Resta su questo dispositivo. Non e&rsquo; un account: non c&rsquo;e&rsquo; niente da
-            registrare, e nessuno lo vede finche&rsquo; non mandi tu una bozza a qualcuno.
+            Resta su questo dispositivo. Non è un account: non c’è niente da
+            registrare, e nessuno lo vede finché non mandi tu una bozza a qualcuno.
           </p>
 
           <button
@@ -389,7 +389,7 @@ function DeleteDialog({
         <h3 className="text-base font-bold text-slate-100">Eliminare la bozza?</h3>
         <p className="text-sm text-slate-400">
           &laquo;<strong className="text-slate-200">{title}</strong>&raquo; e tutti i suoi
-          blocchi verranno eliminati. L&rsquo;operazione non si puo&rsquo; annullare.
+          blocchi verranno eliminati. L&rsquo;operazione non si può annullare.
         </p>
         <div className="flex justify-end gap-2">
           <button onClick={onCancel} className="px-4 py-2.5 text-slate-300 hover:text-white rounded-xl text-sm min-h-[44px]">
@@ -445,7 +445,7 @@ function DraftEditor({
       kind: text ? 'ok' : 'error',
       text: text
         ? `Testo unito: ${draft.blocks.filter(b => b.text.trim()).length} blocchi.`
-        : 'Non c’e’ ancora niente da unire: i blocchi sono tutti vuoti.',
+        : 'Non c’è ancora niente da unire: i blocchi sono tutti vuoti.',
     });
   };
 
@@ -530,9 +530,9 @@ function DraftEditor({
         <div className="mb-5 p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-start gap-2.5 text-xs text-slate-300">
           <Users size={15} className="shrink-0 text-slate-400 mt-0.5" />
           <p>
-            Questa bozza e&rsquo; di{' '}
+            Questa bozza è di{' '}
             <strong>{authorById.get(draft.ownerId)?.name ?? 'un altro autore'}</strong>.
-            Scrivi nei tuoi blocchi e rimandagliela: solo chi l&rsquo;ha creata puo&rsquo;
+            Scrivi nei tuoi blocchi e rimandagliela: solo chi l&rsquo;ha creata può
             riorganizzare e unire il testo.
           </p>
         </div>
@@ -704,7 +704,7 @@ function DraftEditor({
                 />
               </div>
               <div>
-                <label htmlFor="draft-key" className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Tonalita&rsquo;</label>
+                <label htmlFor="draft-key" className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">Tonalità</label>
                 <input
                   id="draft-key"
                   type="text"
@@ -718,7 +718,7 @@ function DraftEditor({
             <p className="text-[10px] text-slate-500">
               Per calcolarli davvero, carica il file della base nella scheda della
               traccia: l&rsquo;analisi gira sul dispositivo. Da un link YouTube l&rsquo;audio
-              non e&rsquo; leggibile.
+              non è leggibile.
             </p>
           </div>
 
