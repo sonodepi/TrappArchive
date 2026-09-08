@@ -1,7 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown, Disc, Maximize2 } from 'lucide-react';
+import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown, Disc, AlertTriangle } from 'lucide-react';
 import { Track } from '../types';
 import { AudioVisualizer } from './AudioVisualizer';
+import { useAudioUrl } from '../storage/audioAccess';
 
 function formatTime(seconds: number) {
   if (!seconds || isNaN(seconds)) return '0:00';
@@ -21,6 +22,34 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
   // Mobile Expanded Player Modal Overlay
   const [isMobileExpanded, setIsMobileExpanded] = useState(false);
 
+  /**
+   * L'URL viene ricostruito dai byte in archivio a ogni cambio di traccia.
+   * Prima si riusava la stringa salvata nel catalogo, che dopo un
+   * ricaricamento era un blob: URL morto.
+   */
+  const audioUrl = useAudioUrl(currentTrack);
+
+  /**
+   * Errore di riproduzione mostrato all'utente. Prima ogni fallimento finiva in
+   * `.catch(console.error)`: si premeva play e non succedeva nulla, senza alcun
+   * messaggio.
+   */
+  const [playbackError, setPlaybackError] = useState<string | null>(null);
+
+  /** Traduce il rifiuto di play() in qualcosa di azionabile. */
+  const reportPlayFailure = (err: unknown) => {
+    setIsPlaying(false);
+    if (err instanceof DOMException && err.name === 'NotAllowedError') {
+      setPlaybackError('Il browser ha bloccato la riproduzione automatica: premi di nuovo play.');
+      return;
+    }
+    if (err instanceof DOMException && err.name === 'NotSupportedError') {
+      setPlaybackError('Formato audio non supportato da questo browser.');
+      return;
+    }
+    setPlaybackError('Riproduzione non riuscita.');
+  };
+
   useEffect(() => {
     if (!audioRef.current) {
       audioRef.current = new Audio();
@@ -33,31 +62,48 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handleLoadedMetadata = () => setDuration(audio.duration);
     const handleEnded = () => setIsPlaying(false);
+    // Un file corrotto o un codec mancante non fanno rigettare play():
+    // l'errore arriva solo da qui.
+    const handleError = () => {
+      setIsPlaying(false);
+      setPlaybackError('Il file audio non puo\u2019 essere riprodotto: potrebbe essere danneggiato o in un formato non supportato.');
+    };
 
     audio.addEventListener('timeupdate', handleTimeUpdate);
     audio.addEventListener('loadedmetadata', handleLoadedMetadata);
     audio.addEventListener('ended', handleEnded);
+    audio.addEventListener('error', handleError);
 
     return () => {
       audio.removeEventListener('timeupdate', handleTimeUpdate);
       audio.removeEventListener('loadedmetadata', handleLoadedMetadata);
       audio.removeEventListener('ended', handleEnded);
+      audio.removeEventListener('error', handleError);
     };
   }, []);
 
   useEffect(() => {
     const audio = audioRef.current;
-    if (audio && currentTrack?.audioFilePath) {
+    if (!audio) return;
+
+    setPlaybackError(null);
+    setCurrentTime(0);
+
+    if (audioUrl.status === 'ready') {
       audio.crossOrigin = 'anonymous';
-      audio.src = currentTrack.audioFilePath;
+      audio.src = audioUrl.url;
       audio.load();
-      audio.play().then(() => setIsPlaying(true)).catch(console.error);
-    } else if (audio && !currentTrack) {
-      audio.pause();
-      audio.src = '';
-      setIsPlaying(false);
+      audio.play().then(() => setIsPlaying(true)).catch(reportPlayFailure);
+      return;
     }
-  }, [currentTrack]);
+
+    audio.pause();
+    audio.removeAttribute('src');
+    audio.load();
+    setIsPlaying(false);
+
+    if (audioUrl.status === 'error') setPlaybackError(audioUrl.message);
+  }, [audioUrl.status, audioUrl.status === 'ready' ? audioUrl.url : null]);
 
   useEffect(() => {
     if (audioRef.current) {
@@ -74,7 +120,8 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
       audio.pause();
       setIsPlaying(false);
     } else {
-      audio.play().then(() => setIsPlaying(true)).catch(console.error);
+      setPlaybackError(null);
+      audio.play().then(() => setIsPlaying(true)).catch(reportPlayFailure);
     }
   };
 
@@ -147,8 +194,9 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
             <button 
               type="button"
               onClick={togglePlay} 
-              disabled={!currentTrack}
+              disabled={audioUrl.status !== 'ready'}
               aria-label={isPlaying ? 'Pausa' : 'Riproduci'}
+              title={audioUrl.status === 'ready' ? undefined : 'Nessun file audio riproducibile'}
               className="w-11 h-11 min-h-[44px] min-w-[44px] rounded-full bg-slate-100 text-black flex items-center justify-center hover:bg-white active:scale-95 transition-transform shadow-md disabled:opacity-30"
             >
               {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
@@ -177,7 +225,16 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
                 </div>
                 <div className="min-w-0 pr-2">
                   <h4 className="text-sm font-semibold text-slate-100 truncate">{currentTrack.title || 'Untitled'}</h4>
-                  <p className="text-xs text-slate-400 mt-0.5 truncate">{currentTrack.mainArtist || 'Unknown Artist'}</p>
+                  {playbackError ? (
+                    <p className="text-xs text-amber-400 mt-0.5 flex items-center gap-1.5 truncate" title={playbackError}>
+                      <AlertTriangle size={11} className="shrink-0" />
+                      <span className="truncate">{playbackError}</span>
+                    </p>
+                  ) : audioUrl.status === 'loading' ? (
+                    <p className="text-xs text-slate-500 mt-0.5">Caricamento del file&hellip;</p>
+                  ) : (
+                    <p className="text-xs text-slate-400 mt-0.5 truncate">{currentTrack.mainArtist || 'Unknown Artist'}</p>
+                  )}
                 </div>
               </>
             ) : (
@@ -197,7 +254,14 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
               </button>
               <button 
                 onClick={togglePlay} 
-                disabled={!currentTrack}
+                disabled={audioUrl.status !== 'ready'}
+                title={
+                  audioUrl.status === 'ready'
+                    ? (isPlaying ? 'Pausa' : 'Riproduci')
+                    : audioUrl.status === 'loading'
+                      ? 'Caricamento del file audio'
+                      : 'Nessun file audio riproducibile per questa traccia'
+                }
                 className="w-10 h-10 rounded-full bg-slate-100 text-black flex items-center justify-center hover:scale-105 active:scale-95 transition-transform shadow-[0_0_15px_rgba(255,255,255,0.2)] disabled:opacity-30 min-h-[40px] min-w-[40px]"
               >
                 {isPlaying ? <Pause size={18} /> : <Play size={18} className="ml-0.5" />}
@@ -338,6 +402,13 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
               </div>
             </div>
 
+            {playbackError && (
+              <div className="p-3 bg-amber-950/40 border border-amber-500/40 rounded-xl flex items-start gap-2.5 text-xs text-amber-100">
+                <AlertTriangle size={15} className="shrink-0 text-amber-400 mt-0.5" />
+                <span>{playbackError}</span>
+              </div>
+            )}
+
             {/* Playback Action Buttons (touch target >= 44px) */}
             <div className="flex items-center justify-center gap-8 py-2">
               <button 
@@ -348,7 +419,7 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
               </button>
               <button 
                 onClick={togglePlay}
-                disabled={!currentTrack}
+                disabled={audioUrl.status !== 'ready'}
                 className="w-16 h-16 rounded-full bg-blue-600 text-white flex items-center justify-center hover:bg-blue-500 active:scale-95 transition-all shadow-[0_0_25px_rgba(37,99,235,0.5)] border border-blue-400 min-h-[44px]"
               >
                 {isPlaying ? <Pause size={28} /> : <Play size={28} className="ml-1" />}

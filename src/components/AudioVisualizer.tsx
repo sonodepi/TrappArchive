@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState, useCallback } from 'react';
-import { Activity, BarChart2, Waves, Maximize2, X, Volume2, Sparkles, Sliders } from 'lucide-react';
+import { Activity, BarChart2, Waves, Maximize2, X, Sliders } from 'lucide-react';
 
 export type VisualizerMode = 'bars' | 'wave' | 'mirror';
 
@@ -40,6 +40,14 @@ export function AudioVisualizer({
   const peaksDataRef = useRef<number[]>(new Array(32).fill(0));
   const peakHoldsRef = useRef<number[]>(new Array(32).fill(0));
 
+  /**
+   * Se dall'analizzatore stanno davvero arrivando dati. Serve a distinguere
+   * "in riproduzione con segnale" da "in riproduzione senza segnale": prima
+   * il secondo caso veniva mascherato da uno spettro sintetico.
+   */
+  const [hasSignal, setHasSignal] = useState(false);
+  const hasSignalRef = useRef(false);
+
   // Initialize Web Audio API on user gesture or play
   const initWebAudio = useCallback(() => {
     if (isWebAudioConnected.current || !audioRef?.current) return;
@@ -76,7 +84,7 @@ export function AudioVisualizer({
         }
       }
     } catch (err) {
-      console.debug('Web Audio API unavailable, utilizing harmonic synthesis fallback:', err);
+      console.debug('Web Audio API non disponibile:', err);
     }
   }, [audioRef]);
 
@@ -143,9 +151,14 @@ export function AudioVisualizer({
       if (sum > 50) hasRealAudio = true;
     }
 
+    // Aggiornato solo al cambiamento: un setState per frame ricostruirebbe
+    // l'albero sessanta volte al secondo.
+    if (hasRealAudio !== hasSignalRef.current) {
+      hasSignalRef.current = hasRealAudio;
+      setHasSignal(hasRealAudio);
+    }
+
     const now = performance.now() * 0.001;
-    const beatTempo = 125 / 60; // 125 BPM tempo
-    const kick = Math.pow(Math.max(0, Math.sin(now * Math.PI * 2 * beatTempo)), 4);
     const effectiveVolume = isPlaying ? volume : 0;
 
     // Draw background grid if expanded studio mode
@@ -193,21 +206,11 @@ export function AudioVisualizer({
           freqData.length - 1
         );
         target = (freqData[binIndex] / 255) * effectiveVolume;
-      } else if (isPlaying) {
-        // High-precision organic musical procedural simulation
-        const normIndex = i / numBars;
-        // Sub-bass resonance (low bands)
-        const subBass = Math.exp(-normIndex * 6) * kick * 0.95;
-        // Melodic mid-frequency rolling harmonics
-        const midWave = Math.sin(now * 3.5 + normIndex * 8) * 0.3 + 0.35;
-        // High frequency transient sparkle
-        const highSizzle = Math.sin(now * 12 + normIndex * 24) * 0.15 + (Math.random() * 0.08);
-        // Combine with frequency curve tilt
-        const curve = 1 - Math.pow(normIndex, 0.7) * 0.6;
-
-        target = Math.max(0.04, (subBass + midWave * 0.6 + highSizzle * 0.4) * curve * effectiveVolume);
       } else {
-        target = 0; // decay to 0 when paused
+        // Nessun dato reale: le barre scendono a riposo. Il codice precedente
+        // sintetizzava qui uno spettro con seni e Math.random() su un tempo
+        // fisso di 125 BPM, indistinguibile da un'analisi vera.
+        target = 0;
       }
 
       // Smooth interpolation (lerp / gravity)
@@ -429,7 +432,7 @@ export function AudioVisualizer({
             </span>
           </div>
           <span className="text-[8px] font-mono text-slate-500">
-            {isPlaying ? '20Hz-20kHz' : 'PAUSED'}
+            {!isPlaying ? 'PAUSED' : hasSignal ? '20Hz-20kHz' : 'NO SIGNAL'}
           </span>
         </div>
 
@@ -444,11 +447,15 @@ export function AudioVisualizer({
             className="w-full h-full block pointer-events-none"
             style={{ width: '100%', height: '100%' }}
           />
-          {!isPlaying && (
+          {!isPlaying ? (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/30">
               <span className="text-[9px] font-mono text-slate-600 tracking-wider">CLICK TO SWITCH</span>
             </div>
-          )}
+          ) : !hasSignal ? (
+            <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/40">
+              <span className="text-[9px] font-mono text-amber-500/80 tracking-wider">NESSUN SEGNALE</span>
+            </div>
+          ) : null}
         </div>
 
         {/* Visualizer Mode & Expand Controls */}

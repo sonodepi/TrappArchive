@@ -2,11 +2,13 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Track, DraftProject } from '../types';
 import {
   Save, Folder, AlertCircle, Plus, Minus, Trash2,
-  ExternalLink, Activity, Music2, X, RefreshCw, CheckCircle2,
+  ExternalLink, Activity, Music2, RefreshCw, CheckCircle2,
   Loader2, KeyRound, Gauge, StopCircle, AlertTriangle, Wand2,
 } from 'lucide-react';
 import { getTunebatSearchUrl, scrapeTunebatUrl } from '../utils/tunebat';
 import { analyzeAudio, confidenceLabel, type AudioAnalysis } from '../audio/analyze';
+import { AudioStoreError, deleteAudio, putAudio } from '../storage/audioStore';
+import { loadAudioBlob } from '../storage/audioAccess';
 import { PHASE_LABELS, type TranscribePhase } from '../services/gemini-types';
 import type { AppSettings } from '../settings/types';
 import { hasAiCredentials } from '../settings/store';
@@ -48,7 +50,6 @@ export function TrackEditor({
     mainArtist: '',
     featurings: [],
     lyrics: '',
-    audioFilePath: '',
     durationMs: 0,
     createdAt: Date.now(),
     bpm: 140,
@@ -73,6 +74,8 @@ export function TrackEditor({
   const [titleError, setTitleError] = useState(false);
 
   const aiReady = hasAiCredentials(settings);
+  /** C'e' un audio su cui si puo' davvero lavorare. */
+  const hasUsableAudio = !!track.audio && track.audio.kind !== 'unavailable';
 
   useEffect(() => {
     if (editTrack) {
@@ -88,7 +91,7 @@ export function TrackEditor({
         id: crypto.randomUUID(),
         title: initialDraft.title !== 'Untitled Draft' ? initialDraft.title : '',
         lyrics: initialDraft.lyrics,
-        audioFilePath: initialDraft.beatUrl,
+        audio: initialDraft.beatUrl ? { kind: 'remote', url: initialDraft.beatUrl } : undefined,
         bpm: initialDraft.bpm || 140,
         key: initialDraft.key || 'C Minor'
       };
@@ -99,26 +102,13 @@ export function TrackEditor({
   }, [editTrack, initialDraft]);
 
   /**
-   * Recupera i byte dell'audio. Preferisce il File selezionato in questa sessione;
-   * altrimenti prova a rileggere il percorso salvato. Un blob: URL di una sessione
-   * precedente è morto e fetch fallisce: in quel caso lo diciamo, invece di
-   * mostrare un errore generico.
+   * Recupera i byte dell'audio. Il File appena selezionato evita un giro
+   * inutile in archivio; per tutto il resto decide `loadAudioBlob`, che e'
+   * l'unico punto dell'app a sapere dove stanno i byte.
    */
   const resolveAudioBlob = async (): Promise<Blob> => {
     if (audioFileRef.current) return audioFileRef.current;
-    const path = track.audioFilePath;
-    if (!path) throw new Error('Nessun file audio associato a questa traccia.');
-    try {
-      const response = await fetch(path);
-      if (!response.ok) throw new Error(String(response.status));
-      return await response.blob();
-    } catch {
-      throw new Error(
-        path.startsWith('blob:')
-          ? "Il file audio non è più disponibile: ricaricalo con Sfoglia file."
-          : "Impossibile leggere l'audio da questo indirizzo.",
-      );
-    }
+    return loadAudioBlob(track);
   };
 
   /** Analisi locale di BPM e tonalità. Nessuna rete, funziona anche offline. */
@@ -243,17 +233,36 @@ export function TrackEditor({
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    e.target.value = ''; // permette di riselezionare lo stesso file
 
     audioFileRef.current = file;
-    const localUrl = URL.createObjectURL(file);
-
-    setTrack(prev => ({
-      ...prev,
-      audioFilePath: localUrl,
-      title: prev.title || file.name.replace(/\.[^/.]+$/, ''),
-    }));
     setAnalysis(null);
     setTranscribeError(null);
+    setAnalysisError(null);
+
+    // I byte vengono archiviati subito: e' cio' che li fa sopravvivere al
+    // ricaricamento della pagina, al posto del blob: URL di prima.
+    try {
+      await putAudio(track.id, file, file.name);
+      setTrack(prev => ({
+        ...prev,
+        audio: {
+          kind: 'local',
+          name: file.name,
+          mimeType: file.type || 'audio/mpeg',
+          sizeBytes: file.size,
+        },
+        title: prev.title || file.name.replace(/\.[^/.]+$/, ''),
+      }));
+    } catch (err) {
+      audioFileRef.current = null;
+      setAnalysisError(
+        err instanceof AudioStoreError
+          ? err.message
+          : "Impossibile archiviare il file audio.",
+      );
+      return;
+    }
 
     // L'analisi restituisce anche la durata reale: non serve un secondo passaggio
     // con un elemento <audio> nascosto.
@@ -263,11 +272,13 @@ export function TrackEditor({
   const handleRemoveAudio = () => {
     cancelAnalysis();
     cancelTranscription();
-    if (track.audioFilePath.startsWith('blob:')) {
-      URL.revokeObjectURL(track.audioFilePath);
-    }
     audioFileRef.current = null;
-    setTrack(prev => ({ ...prev, audioFilePath: '', durationMs: 0 }));
+    // Via anche dall'archivio: un file scollegato dalla traccia non e' piu'
+    // raggiungibile da nessuna parte e occuperebbe spazio per sempre.
+    deleteAudio(track.id).catch(() => {
+      /* Un file mai archiviato non e' un errore. */
+    });
+    setTrack(prev => ({ ...prev, audio: undefined, durationMs: 0 }));
     setAnalysis(null);
     setAnalysisError(null);
     setTunebatNotice(null);
@@ -444,8 +455,8 @@ export function TrackEditor({
                 <button
                   type="button"
                   onClick={() => runAnalysis()}
-                  disabled={!track.audioFilePath}
-                  title={track.audioFilePath ? 'Analizza il file audio' : 'Carica prima un file audio'}
+                  disabled={!hasUsableAudio}
+                  title={hasUsableAudio ? 'Analizza il file audio' : 'Carica prima un file audio'}
                   className="px-2.5 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 transition-colors border border-blue-500/20 disabled:opacity-40 min-h-[36px] shrink-0"
                 >
                   <RefreshCw size={13} />
@@ -539,9 +550,13 @@ export function TrackEditor({
 
               {showTunebatScrape && (
                 <div className="mt-2.5 space-y-2">
-                  <p className="text-[11px] text-amber-300/70">
-                    L'estrazione da Tunebat passa da un proxy pubblico di terze parti:
-                    non funziona offline e può smettere di funzionare senza preavviso.
+                  <p className="text-[11px] text-amber-300/80">
+                    <strong>Passa da terze parti.</strong> Per aggirare le restrizioni
+                    del browser la richiesta viene inoltrata da <code>api.allorigins.win</code>,
+                    un proxy pubblico non collegato a TrappArchive: l&rsquo;indirizzo che
+                    incolli, e quindi il brano che stai cercando, transita da lì. Non
+                    funziona offline e può smettere di funzionare senza preavviso.
+                    L&rsquo;analisi qui sopra non invia nulla a nessuno.
                   </p>
                   <div className="flex items-center gap-2">
                     <input
@@ -595,7 +610,7 @@ export function TrackEditor({
                 </p>
               </div>
 
-              {track.audioFilePath && (
+              {track.audio && (
                 <button 
                   type="button"
                   onClick={handleRemoveAudio}
@@ -626,32 +641,52 @@ export function TrackEditor({
                 <span>Sfoglia file</span>
               </button>
 
-              <div className="relative flex-1">
-                <input 
-                  type="text" 
-                  className="w-full bg-black/40 border border-slate-900 px-4 py-2.5 rounded-xl text-sm text-slate-300 focus:outline-none focus:border-blue-500 placeholder:text-slate-600 min-h-[44px]"
-                  placeholder="Percorso locale o URL audio"
-                  value={track.audioFilePath}
-                  onChange={e => {
-                    // Nessuna analisi automatica a ogni tasto premuto: si lancia
-                    // con il pulsante Analizza, quando il percorso è completo.
-                    audioFileRef.current = null;
-                    setTrack({ ...track, audioFilePath: e.target.value });
-                    setAnalysis(null);
-                  }}
-                />
-                {track.audioFilePath && (
-                  <button
-                    type="button"
-                    onClick={handleRemoveAudio}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 p-1.5 text-slate-500 hover:text-slate-300 transition-colors min-h-[36px] min-w-[36px] flex items-center justify-center"
-                    title="Svuota"
-                  >
-                    <X size={15} />
-                  </button>
-                )}
-              </div>
+              {/* Indirizzo remoto: caso esplicito, distinto dal file locale. */}
+              <input
+                type="url"
+                aria-label="Indirizzo audio remoto"
+                className="flex-1 bg-black/40 border border-slate-900 px-4 py-2.5 rounded-xl text-sm text-slate-300 focus:outline-none focus:border-blue-500 placeholder:text-slate-600 min-h-[44px]"
+                placeholder="oppure incolla un URL audio"
+                value={track.audio?.kind === 'remote' ? track.audio.url : ''}
+                onChange={e => {
+                  const url = e.target.value.trim();
+                  audioFileRef.current = null;
+                  setTrack(prev => ({
+                    ...prev,
+                    audio: url ? { kind: 'remote', url } : undefined,
+                  }));
+                  setAnalysis(null);
+                  setAnalysisError(null);
+                }}
+              />
             </div>
+
+            {/* Stato dell'audio: dice sempre cosa c'e' davvero. */}
+            {track.audio?.kind === 'local' && (
+              <div className="flex items-center gap-2 text-xs text-slate-400 bg-black/40 border border-slate-800 rounded-xl px-3 py-2">
+                <CheckCircle2 size={14} className="shrink-0 text-emerald-400" />
+                <span className="truncate">
+                  <span className="text-slate-200">{track.audio.name}</span>
+                  {track.audio.sizeBytes > 0 && (
+                    <span className="text-slate-500">
+                      {' '}&middot; {(track.audio.sizeBytes / (1024 * 1024)).toFixed(1)} MB
+                    </span>
+                  )}
+                </span>
+                <span className="ml-auto text-slate-500 shrink-0">salvato sul dispositivo</span>
+              </div>
+            )}
+
+            {track.audio?.kind === 'unavailable' && (
+              <div className="flex items-start gap-2 text-xs text-amber-100 bg-amber-950/30 border border-amber-500/30 rounded-xl px-3 py-2">
+                <AlertTriangle size={14} className="shrink-0 text-amber-400 mt-0.5" />
+                <span>
+                  Il file audio di questa traccia non e&rsquo; piu&rsquo; disponibile
+                  {track.audio.name ? ` (${track.audio.name})` : ''}. Ricaricalo con
+                  &laquo;Sfoglia file&raquo;: testo e metadati sono rimasti intatti.
+                </span>
+              </div>
+            )}
           </div>
 
           {/* Featurings */}
@@ -719,9 +754,9 @@ export function TrackEditor({
                 <button
                   type="button"
                   onClick={runTranscription}
-                  disabled={!track.audioFilePath}
+                  disabled={!hasUsableAudio}
                   title={
-                    !track.audioFilePath
+                    !hasUsableAudio
                       ? 'Carica prima un file audio'
                       : !aiReady
                         ? 'Richiede una chiave Gemini: configurala in Impostazioni'

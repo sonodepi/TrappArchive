@@ -1,11 +1,12 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useRef } from 'react';
 import { DraftProject } from '../types';
 import { extractYoutubeId } from '../utils';
-import { 
-  Youtube, AlignLeft, ArrowLeft, Plus, Eye, EyeOff, Hash, 
-  LogIn, Users, CheckCircle, Lock, PenTool, Trash2, ArrowRightToLine,
-  Activity, Music, ExternalLink, RefreshCw, X, AlertTriangle, Download, MicOff 
+import {
+  Youtube, AlignLeft, ArrowLeft, Plus,
+  Users, CheckCircle, Lock, PenTool, Trash2, ArrowRightToLine,
+  Activity, ExternalLink, RefreshCw, X, AlertTriangle, Download, Upload, MicOff,
 } from 'lucide-react';
+import { parseDraft } from '../storage/migrate';
 import { autoDetectTunebatData, getTunebatSearchUrl, scrapeTunebatUrl } from '../utils/tunebat';
 
 export function WorkingOn({ 
@@ -18,8 +19,8 @@ export function WorkingOn({
   onSendToTrack?: (draft: DraftProject) => void
 }) {
   const [activeDraftId, setActiveDraftId] = useState<string | null>(null);
-  const [joinCode, setJoinCode] = useState('');
-  const [showCode, setShowCode] = useState(false);
+  const draftFileInputRef = useRef<HTMLInputElement | null>(null);
+  const [exchangeNotice, setExchangeNotice] = useState<{ kind: 'ok' | 'error'; text: string } | null>(null);
   const [urlInput, setUrlInput] = useState('');
   const [tunebatInput, setTunebatInput] = useState('');
   const [draftToDelete, setDraftToDelete] = useState<DraftProject | null>(null);
@@ -30,7 +31,6 @@ export function WorkingOn({
   });
 
   const createDraft = () => {
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
     const newDraft: DraftProject = {
       id: crypto.randomUUID(),
       title: 'Nuova Bozza',
@@ -41,7 +41,6 @@ export function WorkingOn({
       ownerReady: false,
       collabReady: false,
       beatUrl: '',
-      shareCode: code,
       updatedAt: Date.now(),
       bpm: 140,
       key: 'C Minor'
@@ -57,32 +56,94 @@ export function WorkingOn({
     });
   };
 
-  const handleJoin = () => {
-    const cleanCode = joinCode.replace(/\D/g, '').substring(0, 6);
-    if (cleanCode.length !== 6) return;
-    
-    let draft = drafts.find(d => d.shareCode === cleanCode);
-    if (!draft) {
-      draft = {
-        id: crypto.randomUUID(),
-        title: `Collab Bozza (${cleanCode})`,
-        lyrics: '',
-        ownerLyrics: '',
-        collaboratorLyrics: '',
-        isCoopMode: false,
-        ownerReady: false,
-        collabReady: false,
-        beatUrl: '',
-        shareCode: cleanCode,
+  /**
+   * Scrittura a due voci senza server.
+   *
+   * Prima esisteva un codice a 6 cifre che prometteva una sessione condivisa:
+   * `handleJoin` lo cercava pero' fra le bozze locali, e se non lo trovava ne
+   * creava una vuota con quel codice. L'operazione non falliva mai e due
+   * dispositivi non si incontravano mai. Qui la bozza si scambia come file:
+   * il trasporto lo sceglie l'utente, e il risultato e' verificabile.
+   */
+  const exportDraft = (draft: DraftProject) => {
+    const payload = {
+      app: 'TrappArchive',
+      kind: 'draft' as const,
+      version: 1,
+      exportedAt: new Date().toISOString(),
+      draft,
+    };
+    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `trapparchive_bozza_${(draft.title || 'senza_titolo').replace(/\s+/g, '_').toLowerCase()}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  };
+
+  const handleImportDraft = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = '';
+    setExchangeNotice(null);
+
+    const reader = new FileReader();
+    reader.onerror = () =>
+      setExchangeNotice({ kind: 'error', text: 'Impossibile leggere il file selezionato.' });
+
+    reader.onload = event => {
+      let parsed: unknown;
+      try {
+        parsed = JSON.parse(String(event.target?.result ?? ''));
+      } catch {
+        setExchangeNotice({ kind: 'error', text: 'Il file non e\u2019 un JSON valido.' });
+        return;
+      }
+
+      const raw = parsed as { draft?: unknown };
+      const incoming = parseDraft(raw?.draft ?? parsed);
+      if (!incoming) {
+        setExchangeNotice({
+          kind: 'error',
+          text: 'Questo file non contiene una bozza di TrappArchive.',
+        });
+        return;
+      }
+
+      const existing = drafts.find(d => d.id === incoming.id);
+      if (!existing) {
+        // Bozza di qualcun altro: qui dentro io sono il collaboratore, quindi
+        // non finisce fra quelle di cui sono proprietario.
+        setDrafts([...drafts, incoming]);
+        setActiveDraftId(incoming.id);
+        setExchangeNotice({ kind: 'ok', text: `Bozza "${incoming.title}" importata.` });
+        return;
+      }
+
+      // Stessa bozza tornata indietro: prendo solo la voce dell'altro e
+      // conservo la mia, che e' piu' recente di quella che avevo spedito.
+      const iAmOwner = ownedDraftIds.includes(existing.id);
+      const merged: DraftProject = {
+        ...existing,
+        ownerLyrics: iAmOwner ? existing.ownerLyrics : incoming.ownerLyrics,
+        collaboratorLyrics: iAmOwner ? incoming.collaboratorLyrics : existing.collaboratorLyrics,
+        ownerReady: iAmOwner ? existing.ownerReady : incoming.ownerReady,
+        collabReady: iAmOwner ? incoming.collabReady : existing.collabReady,
+        beatUrl: existing.beatUrl || incoming.beatUrl,
         updatedAt: Date.now(),
-        bpm: 140,
-        key: 'C Minor'
       };
-      setDrafts([...drafts, draft]);
-    }
-    setActiveDraftId(draft.id);
-    setUrlInput(draft.beatUrl);
-    setJoinCode('');
+      setDrafts(drafts.map(d => (d.id === merged.id ? merged : d)));
+      setActiveDraftId(merged.id);
+      setExchangeNotice({
+        kind: 'ok',
+        text: `Aggiornata "${merged.title}" con la parte ${iAmOwner ? 'del collaboratore' : 'dell\u2019autore'}.`,
+      });
+    };
+
+    reader.readAsText(file);
   };
 
   const activeDraft = drafts.find(d => d.id === activeDraftId);
@@ -170,29 +231,26 @@ export function WorkingOn({
               Bozze & Sessioni Co-op
             </h2>
             <p className="text-xs sm:text-sm text-slate-400 mt-1">
-              Scrivi testi, sincronizza con basi YouTube e collabora a 4 mani.
+              Scrivi testi, sincronizza con basi YouTube e passa la bozza a un
+              collaboratore come file.
             </p>
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <div className="relative flex items-center">
-              <input 
-                type="text"
-                placeholder="Codice 6 cifre"
-                maxLength={6}
-                value={joinCode}
-                onChange={(e) => setJoinCode(e.target.value.replace(/\D/g, ''))}
-                onKeyDown={(e) => e.key === 'Enter' && handleJoin()}
-                className="w-32 bg-black/40 border border-slate-900 rounded-xl px-3 py-2.5 text-xs font-mono tracking-widest focus:outline-none focus:border-blue-500 transition-colors shadow-inner text-slate-200 min-h-[44px]"
-              />
-              <button 
-                onClick={handleJoin}
-                disabled={joinCode.length !== 6}
-                className="ml-2 bg-white/5 hover:bg-white/10 disabled:opacity-30 text-slate-200 px-3 py-2.5 rounded-xl text-xs font-semibold transition-colors flex items-center gap-1.5 border border-white/5 min-h-[44px]"
-              >
-                <LogIn size={15} /> Unisciti
-              </button>
-            </div>
+            <input
+              ref={draftFileInputRef}
+              type="file"
+              accept=".json,application/json"
+              onChange={handleImportDraft}
+              className="hidden"
+            />
+            <button
+              onClick={() => draftFileInputRef.current?.click()}
+              className="bg-white/5 hover:bg-white/10 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 border border-white/5 min-h-[44px]"
+              title="Apri una bozza ricevuta da un collaboratore"
+            >
+              <Upload size={16} /> Importa bozza
+            </button>
 
             <button 
               onClick={createDraft}
@@ -203,12 +261,37 @@ export function WorkingOn({
           </div>
         </div>
 
+        {exchangeNotice && (
+          <div
+            className={`mb-5 p-3 border rounded-xl flex items-center gap-2.5 text-xs shrink-0 ${
+              exchangeNotice.kind === 'ok'
+                ? 'bg-blue-950/40 border-blue-500/40 text-blue-200'
+                : 'bg-amber-950/40 border-amber-500/40 text-amber-100'
+            }`}
+          >
+            {exchangeNotice.kind === 'ok' ? (
+              <CheckCircle size={15} className="shrink-0 text-blue-400" />
+            ) : (
+              <AlertTriangle size={15} className="shrink-0 text-amber-400" />
+            )}
+            <span className="flex-1">{exchangeNotice.text}</span>
+            <button
+              onClick={() => setExchangeNotice(null)}
+              aria-label="Chiudi"
+              className="p-1 hover:text-white transition-colors"
+            >
+              <X size={13} />
+            </button>
+          </div>
+        )}
+
         {drafts.length === 0 ? (
           <div className="text-slate-500 text-center py-24 border border-slate-900 bg-white/[0.02] shadow-[0_8px_30px_rgb(0,0,0,0.4)] rounded-2xl p-6">
             <AlignLeft className="w-12 h-12 mx-auto mb-4 text-slate-700" />
             <p className="text-lg font-medium text-slate-300">Nessuna bozza attiva</p>
             <p className="text-sm mt-1 max-w-sm mx-auto text-slate-500">
-              Crea una nuova bozza o unisciti a una sessione inserendo il codice di condivisione a 6 cifre.
+              Crea una bozza per iniziare a scrivere, oppure importa quella che
+              ti ha passato un collaboratore.
             </p>
             <button 
               onClick={createDraft}
@@ -231,8 +314,10 @@ export function WorkingOn({
               >
                 <div>
                   <div className="flex items-center justify-between mb-3">
-                    <span className="text-[11px] font-mono tracking-wider text-slate-500 uppercase flex items-center gap-1.5">
-                      <Hash size={13} className="text-blue-500" /> {d.shareCode}
+                    <span className="text-[11px] font-mono tracking-wider text-slate-500 flex items-center gap-1.5">
+                      {new Date(d.updatedAt).toLocaleDateString('it-IT', {
+                        day: '2-digit', month: 'short', year: 'numeric',
+                      })}
                     </span>
                     
                     <div className="flex items-center gap-1.5">
@@ -418,18 +503,13 @@ export function WorkingOn({
             <Users size={16} /> {activeDraft.isCoopMode ? 'Co-op Attivo' : 'Attiva Co-op'}
           </button>
 
-          <div className="flex items-center gap-2 bg-black/60 border border-slate-800 rounded-xl p-1 pl-3 shadow-inner min-h-[44px]">
-            <span className={`font-mono text-base tracking-widest transition-all ${showCode ? 'text-blue-400' : 'text-slate-500 blur-[4px]'}`}>
-              {activeDraft.shareCode.slice(0,3)} - {activeDraft.shareCode.slice(3,6)}
-            </span>
-            <button 
-              onClick={() => setShowCode(!showCode)}
-              className="p-2 bg-white/5 hover:bg-white/10 rounded-lg transition-colors text-slate-300 min-h-[36px] min-w-[36px] flex items-center justify-center"
-              title={showCode ? "Nascondi codice" : "Mostra codice"}
-            >
-              {showCode ? <EyeOff size={16} /> : <Eye size={16} />}
-            </button>
-          </div>
+          <button
+            onClick={() => exportDraft(activeDraft)}
+            className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-xl text-xs font-semibold transition-colors min-h-[44px]"
+            title="Salva la bozza come file da inviare al collaboratore"
+          >
+            <Download size={16} /> Passa la bozza
+          </button>
         </div>
       </div>
 
@@ -604,8 +684,13 @@ export function WorkingOn({
               </button>
             </div>
 
-            {/* Tunebat Auto-Compilation Box */}
+            {/* Estrazione da Tunebat: opzionale, e dichiarata. */}
             <div className="flex flex-col gap-3 p-3 bg-black/40 border border-slate-800 rounded-xl">
+              <p className="text-[11px] text-amber-300/80">
+                <strong>Passa da terze parti.</strong> La richiesta viene inoltrata da{' '}
+                <code>api.allorigins.win</code>, un proxy pubblico non collegato a
+                TrappArchive: il link che incolli transita da lì. Non funziona offline.
+              </p>
               <div className="flex items-center gap-2">
                 <input 
                   type="text"
