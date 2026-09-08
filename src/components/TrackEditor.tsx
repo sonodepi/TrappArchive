@@ -4,7 +4,7 @@ import {
   Save, Folder, Mic, AlertCircle, Plus, Minus, Trash2, 
   Sparkles, ExternalLink, Activity, Music2, X, RefreshCw, CheckCircle2 
 } from 'lucide-react';
-import { autoDetectTunebatData, getTunebatSearchUrl } from '../utils/tunebat';
+import { autoDetectTunebatData, getTunebatSearchUrl, scrapeTunebatUrl } from '../utils/tunebat';
 
 export function TrackEditor({ 
   onSave, 
@@ -39,6 +39,7 @@ export function TrackEditor({
   const [isTranscribing, setIsTranscribing] = useState(false);
   const [isAnalyzingAudio, setIsAnalyzingAudio] = useState(false);
   const [tunebatNotice, setTunebatNotice] = useState<string | null>(null);
+  const [tunebatInput, setTunebatInput] = useState<string>('');
 
   useEffect(() => {
     if (editTrack) {
@@ -59,15 +60,36 @@ export function TrackEditor({
         key: initialDraft.key || 'C Minor'
       };
       setTrack(draftTrack);
-
-      // Auto-detect if draft has title or beat
-      if (draftTrack.title || draftTrack.audioFilePath) {
-        triggerTunebatAutoFill(draftTrack.title, draftTrack.mainArtist, draftTrack.audioFilePath);
-      }
     } else {
       setTrack({ ...defaultTrack, id: crypto.randomUUID() });
     }
   }, [editTrack, initialDraft]);
+
+  const handleScrapeTunebat = async () => {
+    if (!tunebatInput) return;
+    setIsAnalyzingAudio(true);
+    setTunebatNotice(null);
+    try {
+      const result = await scrapeTunebatUrl(tunebatInput);
+      if (result) {
+        setTrack(prev => ({
+          ...prev,
+          bpm: result.bpm || prev.bpm,
+          key: result.key || prev.key
+        }));
+        setTunebatNotice(
+          `Tunebat estratto: ${result.bpm || track.bpm} BPM • ${result.key || track.key}`
+        );
+      } else {
+        setTunebatNotice('Impossibile estrarre i dati da questo link Tunebat.');
+      }
+    } catch (err) {
+      console.error('Tunebat scrape error:', err);
+      setTunebatNotice('Errore durante l\'estrazione da Tunebat.');
+    } finally {
+      setIsAnalyzingAudio(false);
+    }
+  };
 
   // Tunebat auto-fill function
   const triggerTunebatAutoFill = async (
@@ -76,6 +98,7 @@ export function TrackEditor({
     audioUrl?: string, 
     file?: File
   ) => {
+    if (!file) return; // Only run auto-detect if a file is actually uploaded
     setIsAnalyzingAudio(true);
     setTunebatNotice(null);
     try {
@@ -92,7 +115,7 @@ export function TrackEditor({
           key: result.key
         }));
         setTunebatNotice(
-          `Tunebat: ${result.bpm} BPM • ${result.key}${result.camelot ? ` (${result.camelot})` : ''} rilevati!`
+          `Analisi Audio: ${result.bpm} BPM • ${result.key}${result.camelot ? ` (${result.camelot})` : ''} rilevati!`
         );
       }
     } catch (err) {
@@ -225,9 +248,6 @@ export function TrackEditor({
                 onChange={e => {
                   const newTitle = e.target.value;
                   setTrack({ ...track, title: newTitle });
-                  if (newTitle.length > 2 && !track.bpm) {
-                    triggerTunebatAutoFill(newTitle, track.mainArtist, track.audioFilePath);
-                  }
                 }}
               />
             </div>
@@ -246,9 +266,6 @@ export function TrackEditor({
                   onChange={e => {
                     const newArtist = e.target.value;
                     setTrack({ ...track, mainArtist: newArtist });
-                    if (track.title && newArtist) {
-                      triggerTunebatAutoFill(track.title, newArtist, track.audioFilePath);
-                    }
                   }}
                 />
               </div>
@@ -280,7 +297,7 @@ export function TrackEditor({
                     Tunebat Auto-Detection
                   </h3>
                   <p className="text-[11px] text-slate-500">
-                    BPM e chiave musicale rilevati automaticamente
+                    Inserisci link per estrarre o analizza file
                   </p>
                 </div>
               </div>
@@ -289,12 +306,12 @@ export function TrackEditor({
                 <button
                   type="button"
                   onClick={() => triggerTunebatAutoFill(track.title, track.mainArtist, track.audioFilePath)}
-                  disabled={isAnalyzingAudio}
-                  className="px-2.5 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg text-xs font-medium flex items-center gap-1.5 transition-colors border border-blue-500/20 disabled:opacity-50 min-h-[36px]"
-                  title="Rianalizza Tunebat"
+                  disabled={isAnalyzingAudio || !track.audioFilePath}
+                  className="px-2.5 py-1.5 bg-blue-600/10 hover:bg-blue-600/20 text-blue-400 rounded-lg text-[10px] font-medium flex items-center gap-1.5 transition-colors border border-blue-500/20 disabled:opacity-50 min-h-[36px]"
+                  title="Analizza file locale"
                 >
                   <RefreshCw size={12} className={isAnalyzingAudio ? 'animate-spin' : ''} />
-                  <span className="hidden sm:inline">Rileva</span>
+                  <span className="hidden sm:inline">Audio</span>
                 </button>
                 <a
                   href={getTunebatSearchUrl(track.title || '', track.mainArtist || '')}
@@ -306,6 +323,26 @@ export function TrackEditor({
                   <ExternalLink size={14} />
                 </a>
               </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <input 
+                type="text"
+                placeholder="Incolla link Tunebat per auto-compilare..."
+                value={tunebatInput}
+                onChange={(e) => setTunebatInput(e.target.value)}
+                onKeyDown={(e) => e.key === 'Enter' && handleScrapeTunebat()}
+                className="flex-1 bg-black/60 border border-slate-900 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500 transition-colors text-slate-300 min-h-[36px]"
+              />
+              <button
+                type="button"
+                onClick={handleScrapeTunebat}
+                disabled={isAnalyzingAudio || !tunebatInput}
+                className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 min-h-[36px] flex items-center gap-1.5"
+              >
+                {isAnalyzingAudio ? <RefreshCw size={12} className="animate-spin" /> : <Activity size={12} />}
+                <span>Estrai</span>
+              </button>
             </div>
 
             {tunebatNotice && (

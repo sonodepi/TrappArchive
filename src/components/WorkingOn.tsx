@@ -4,9 +4,9 @@ import { extractYoutubeId } from '../utils';
 import { 
   Youtube, AlignLeft, ArrowLeft, Plus, Eye, EyeOff, Hash, 
   LogIn, Users, CheckCircle, Lock, PenTool, Trash2, ArrowRightToLine,
-  Activity, Music, ExternalLink, RefreshCw, X, AlertTriangle 
+  Activity, Music, ExternalLink, RefreshCw, X, AlertTriangle, Download, MicOff 
 } from 'lucide-react';
-import { autoDetectTunebatData, getTunebatSearchUrl } from '../utils/tunebat';
+import { autoDetectTunebatData, getTunebatSearchUrl, scrapeTunebatUrl } from '../utils/tunebat';
 
 export function WorkingOn({ 
   drafts, 
@@ -21,6 +21,7 @@ export function WorkingOn({
   const [joinCode, setJoinCode] = useState('');
   const [showCode, setShowCode] = useState(false);
   const [urlInput, setUrlInput] = useState('');
+  const [tunebatInput, setTunebatInput] = useState('');
   const [draftToDelete, setDraftToDelete] = useState<DraftProject | null>(null);
   const [isDetectingTunebat, setIsDetectingTunebat] = useState(false);
   
@@ -118,6 +119,24 @@ export function WorkingOn({
       } finally {
         setIsDetectingTunebat(false);
       }
+    }
+  };
+
+  const handleLoadTunebatLink = async () => {
+    if (!activeDraft || !tunebatInput) return;
+    setIsDetectingTunebat(true);
+    try {
+      const result = await scrapeTunebatUrl(tunebatInput);
+      if (result) {
+        updateActiveDraft({
+          bpm: result.bpm || activeDraft.bpm,
+          key: result.key || activeDraft.key
+        });
+      }
+    } catch (e) {
+      console.error('Tunebat scrape error:', e);
+    } finally {
+      setIsDetectingTunebat(false);
     }
   };
 
@@ -586,58 +605,108 @@ export function WorkingOn({
             </div>
 
             {/* Tunebat Auto-Compilation Box */}
-            <div className="p-3 bg-black/40 border border-slate-800 rounded-xl flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-mono text-slate-500">Tunebat BPM</span>
-                  <input
-                    type="number"
-                    value={activeDraft.bpm || 140}
-                    onChange={(e) => updateActiveDraft({ bpm: parseInt(e.target.value, 10) || 0 })}
-                    className="w-20 bg-transparent text-sm font-mono font-bold text-blue-400 focus:outline-none border-b border-blue-500/30"
-                  />
-                </div>
-                <div className="w-px h-6 bg-slate-800" />
-                <div className="flex flex-col">
-                  <span className="text-[10px] uppercase font-mono text-slate-500">Tunebat Key</span>
-                  <input
-                    type="text"
-                    value={activeDraft.key || 'C Minor'}
-                    onChange={(e) => updateActiveDraft({ key: e.target.value })}
-                    className="w-24 bg-transparent text-sm font-mono font-bold text-purple-400 focus:outline-none border-b border-purple-500/30"
-                  />
-                </div>
+            <div className="flex flex-col gap-3 p-3 bg-black/40 border border-slate-800 rounded-xl">
+              <div className="flex items-center gap-2">
+                <input 
+                  type="text"
+                  placeholder="Incolla link Tunebat per auto-compilare..."
+                  value={tunebatInput}
+                  onChange={(e) => setTunebatInput(e.target.value)}
+                  onKeyDown={(e) => e.key === 'Enter' && handleLoadTunebatLink()}
+                  className="flex-1 bg-black/60 border border-slate-900 rounded-lg px-3 py-2 text-xs focus:outline-none focus:border-purple-500 transition-colors text-slate-300 min-h-[36px]"
+                />
+                <button
+                  onClick={handleLoadTunebatLink}
+                  disabled={isDetectingTunebat || !tunebatInput}
+                  className="bg-purple-600/20 hover:bg-purple-600/30 text-purple-400 border border-purple-500/30 px-3 py-2 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 min-h-[36px] flex items-center gap-1.5"
+                >
+                  {isDetectingTunebat ? <RefreshCw size={12} className="animate-spin" /> : <Activity size={12} />}
+                  <span>Estrai</span>
+                </button>
               </div>
 
-              <a
-                href={tunebatSearchUrl}
-                target="_blank"
-                rel="noreferrer"
-                className="text-[11px] font-mono text-slate-400 hover:text-blue-400 flex items-center gap-1 px-3 py-2 bg-white/5 rounded-lg transition-colors border border-white/5 min-h-[36px]"
-              >
-                <span>Tunebat</span>
-                <ExternalLink size={13} />
-              </a>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-mono text-slate-500">Tunebat BPM</span>
+                    <input
+                      type="number"
+                      value={activeDraft.bpm || 140}
+                      onChange={(e) => updateActiveDraft({ bpm: parseInt(e.target.value, 10) || 0 })}
+                      className="w-16 sm:w-20 bg-transparent text-sm font-mono font-bold text-blue-400 focus:outline-none border-b border-blue-500/30"
+                    />
+                  </div>
+                  <div className="w-px h-6 bg-slate-800" />
+                  <div className="flex flex-col">
+                    <span className="text-[10px] uppercase font-mono text-slate-500">Tunebat Key</span>
+                    <input
+                      type="text"
+                      value={activeDraft.key || 'C Minor'}
+                      onChange={(e) => updateActiveDraft({ key: e.target.value })}
+                      className="w-20 sm:w-24 bg-transparent text-sm font-mono font-bold text-purple-400 focus:outline-none border-b border-purple-500/30"
+                    />
+                  </div>
+                </div>
+
+                <a
+                  href={tunebatSearchUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="text-[11px] font-mono text-slate-400 hover:text-blue-400 flex items-center gap-1 px-3 py-2 bg-white/5 rounded-lg transition-colors border border-white/5 min-h-[36px]"
+                >
+                  <span className="hidden sm:inline">Cerca su</span> Tunebat
+                  <ExternalLink size={13} />
+                </a>
+              </div>
             </div>
           </div>
 
-          {/* YouTube Embed Player: Strict aspect-video (16:9) rather than fixed height */}
-          <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-900 shadow-lg relative shrink-0">
-            {ytId ? (
-              <iframe
-                src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&loop=1&playlist=${ytId}&controls=1&modestbranding=1`}
-                title="YouTube video player"
-                className="absolute inset-0 w-full h-full"
-                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                allowFullScreen
-              />
-            ) : (
-              <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 p-4 text-center">
-                <Youtube className="w-12 h-12 mb-2 opacity-40 text-slate-500" />
-                <p className="text-xs font-medium text-slate-400">Nessuna base inserita</p>
-                <p className="text-[11px] text-slate-600 mt-0.5">Incolla un link YouTube per mandarla in loop mentre scrivi</p>
+          {/* YouTube Embed Player & Downloader Tools */}
+          <div className="flex flex-col gap-2 relative shrink-0">
+            {ytId && (
+              <div className="flex items-center justify-between px-1">
+                <span className="text-[10px] uppercase font-bold tracking-wider text-slate-500">Strumenti Audio (Gratis)</span>
+                <div className="flex gap-2">
+                  <a 
+                    href={`https://cobalt.tools`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="px-2.5 py-1.5 bg-emerald-600/10 hover:bg-emerald-600/20 text-emerald-400 border border-emerald-500/20 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                    title="Scarica Audio tramite Cobalt.tools (Senza Pubblicità)"
+                  >
+                    <Download size={13} />
+                    <span className="hidden sm:inline">Scarica WAV/MP3</span>
+                  </a>
+                  <a 
+                    href={`https://vocalremover.org`} 
+                    target="_blank" 
+                    rel="noreferrer"
+                    className="px-2.5 py-1.5 bg-indigo-600/10 hover:bg-indigo-600/20 text-indigo-400 border border-indigo-500/20 rounded-lg text-[10px] font-bold uppercase tracking-wider flex items-center gap-1.5 transition-colors"
+                    title="Rimuovi la voce tramite VocalRemover (Richiede il file audio)"
+                  >
+                    <MicOff size={13} />
+                    <span className="hidden sm:inline">Vocal Remover</span>
+                  </a>
+                </div>
               </div>
             )}
+            <div className="w-full aspect-video bg-black rounded-2xl overflow-hidden border border-slate-900 shadow-lg relative shrink-0">
+              {ytId ? (
+                <iframe
+                  src={`https://www.youtube-nocookie.com/embed/${ytId}?autoplay=1&loop=1&playlist=${ytId}&controls=1&modestbranding=1`}
+                  title="YouTube video player"
+                  className="absolute inset-0 w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
+              ) : (
+                <div className="absolute inset-0 flex flex-col items-center justify-center text-slate-600 p-4 text-center">
+                  <Youtube className="w-12 h-12 mb-2 opacity-40 text-slate-500" />
+                  <p className="text-xs font-medium text-slate-400">Nessuna base inserita</p>
+                  <p className="text-[11px] text-slate-600 mt-0.5">Incolla un link YouTube per mandarla in loop mentre scrivi</p>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 

@@ -258,6 +258,51 @@ function detectKeyFromBuffer(buffer: AudioBuffer): string {
   return bestKey;
 }
 
+export async function scrapeTunebatUrl(url: string): Promise<Partial<TunebatAnalysisResult> | null> {
+  if (!url || !url.includes('tunebat.com')) return null;
+  try {
+    const proxyUrl = `https://api.allorigins.win/get?url=${encodeURIComponent(url)}`;
+    const response = await fetch(proxyUrl);
+    if (!response.ok) return null;
+    
+    const data = await response.json();
+    const html = data.contents;
+    if (!html) return null;
+    
+    const result: Partial<TunebatAnalysisResult> = {};
+    
+    // Scrape BPM (e.g. <div ...>140</div> followed by BPM or similar, Tunebat usually has it in specific elements, but we can regex it)
+    // Actually, Tunebat has structured data or specific classes. Usually: <p class="attribute-value">140</p>
+    // Or we can just look for the first 2-3 digit number near "BPM"
+    const bpmMatch = html.match(/>(\d{2,3})<\/p>[^<]*<p[^>]*>BPM<\/p>/i) || html.match(/BPM[\s\S]{0,50}?(\d{2,3})/i);
+    if (bpmMatch && bpmMatch[1]) {
+      result.bpm = parseInt(bpmMatch[1], 10);
+    }
+    
+    // Scrape Key (e.g. C Minor, F# Major)
+    // Tunebat Camelot might be visible too.
+    const camelotMatch = html.match(/>([1-9]|1[0-2])[AB]<\/p>[^<]*<p[^>]*>Camelot<\/p>/i);
+    if (camelotMatch && camelotMatch[1]) {
+      const code = camelotMatch[1] + (html.match(/>([1-9]|1[0-2])([AB])<\/p>/i)?.[2] || 'A'); // rough extraction
+      result.camelot = code;
+    }
+    
+    const keyMatch = html.match(/>([A-G][#b]? (?:Major|Minor))<\/p>[^<]*<p[^>]*>Key<\/p>/i);
+    if (keyMatch && keyMatch[1]) {
+      result.key = keyMatch[1];
+    }
+    
+    if (result.bpm || result.key) {
+      result.source = 'tunebat-online';
+      result.tunebatUrl = url;
+      return result;
+    }
+  } catch (err) {
+    console.error('Tunebat scrape error:', err);
+  }
+  return null;
+}
+
 /**
  * Integrated Tunebat Auto-Compiler:
  * Tries online open metadata first, falls back to text parsing or audio analysis
@@ -282,44 +327,11 @@ export async function autoDetectTunebatData(params: {
     }
   }
 
-  // 2. Try online Deezer open catalog lookup (instant BPM for 100M+ songs)
-  const query = [title, artist].filter(Boolean).join(' ').trim();
-  if (query) {
-    try {
-      const searchRes = await fetch(`https://api.deezer.com/search?q=${encodeURIComponent(query)}&limit=1`);
-      if (searchRes.ok) {
-        const searchData = await searchRes.json();
-        const topTrack = searchData.data && searchData.data[0];
-        if (topTrack && topTrack.id) {
-          const trackRes = await fetch(`https://api.deezer.com/track/${topTrack.id}`);
-          if (trackRes.ok) {
-            const details = await trackRes.json();
-            const bpm = Math.round(details.bpm || 0);
-            if (bpm > 0) {
-              // Parse key from text or default harmonic
-              const parsedKey = parseBpmAndKeyFromText(fullText)?.key || 'C Minor';
-              return {
-                bpm,
-                key: parsedKey,
-                camelot: CAMELOT_MAP[parsedKey] || '5A',
-                source: 'tunebat-online',
-                confidence: 0.95,
-                tunebatUrl: getTunebatSearchUrl(title, artist),
-              };
-            }
-          }
-        }
-      }
-    } catch {
-      // Gracefully continue to text parsing
-    }
-  }
-
-  // 3. Fallback to intelligent title/filename metadata parsing
+  // 2. Fallback to intelligent title/filename metadata parsing
   const parsed = parseBpmAndKeyFromText(fullText);
   if (parsed && (parsed.bpm || parsed.key)) {
     return {
-      bpm: parsed.bpm || 130,
+      bpm: parsed.bpm || 140,
       key: parsed.key || 'C Minor',
       camelot: parsed.camelot || CAMELOT_MAP[parsed.key || 'C Minor'] || '5A',
       source: 'metadata-parse',
@@ -328,13 +340,6 @@ export async function autoDetectTunebatData(params: {
     };
   }
 
-  // 4. Default modern trap / hip-hop estimate if nothing else found
-  return {
-    bpm: 140,
-    key: 'C Minor',
-    camelot: '5A',
-    source: 'metadata-parse',
-    confidence: 0.6,
-    tunebatUrl: getTunebatSearchUrl(title, artist),
-  };
+  // No longer return default 140/5C automatically if nothing is found
+  return null;
 }
