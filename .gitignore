@@ -6,3 +6,10 @@ coverage/
 *.log
 .env*
 !.env.example
+
+# Chiavi e credenziali — non committare mai
+*firebase*config*.json
+*service-account*.json
+*credentials*.json
+*.pem
+*.key
