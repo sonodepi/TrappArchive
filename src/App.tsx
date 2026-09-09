@@ -18,6 +18,7 @@ import { Settings } from './components/Settings';
 import { useSettings } from './settings/store';
 import { loadCatalog, migrateLegacyKeys, saveCatalog } from './storage/catalog';
 import { deleteAudio, pruneOrphans } from './storage/audioStore';
+import { useCloudSync } from './cloud/useCloudSync';
 import { AlertTriangle, Disc, Settings as SettingsIcon, X } from 'lucide-react';
 
 // Le chiavi legacy vanno spostate prima della lettura, non in un effetto che
@@ -79,6 +80,25 @@ export default function App() {
     window.addEventListener('storage', handleStorage);
     return () => window.removeEventListener('storage', handleStorage);
   }, []);
+
+  /**
+   * Sincronizzazione facoltativa fra dispositivi. Se non e' configurata resta
+   * inerte: l'app continua a funzionare interamente in locale.
+   */
+  const cloud = useCloudSync(
+    settings,
+    { tracks, albums, drafts },
+    useCallback((next: { tracks: Track[]; albums: Album[]; drafts: DraftProject[] }) => {
+      setTracks(next.tracks);
+      setAlbums(next.albums);
+      setDrafts(next.drafts);
+    }, []),
+  );
+
+  // Riprende una sessione gia' aperta, senza richiedere l'accesso ogni volta.
+  useEffect(() => {
+    cloud.restore();
+  }, [cloud.restore]);
 
   /**
    * Import di un backup. Passa dallo stato React, non da localStorage: e' il
@@ -263,6 +283,7 @@ export default function App() {
               tracks={tracks}
               drafts={drafts}
               onImport={handleImport}
+              cloud={cloud}
             />
           )}
           {activeTab === 'settings' && (

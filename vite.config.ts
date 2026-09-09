@@ -81,7 +81,11 @@ export default defineConfig(() => {
           // trascrizione, che richiede comunque una connessione. Precaricarlo
           // significherebbe scaricare ~390 kB all'installazione per codice che
           // offline non potrebbe mai essere usato.
-          globIgnores: ['**/gemini-*.js'],
+          // Stessa ragione per Firebase: la sincronizzazione richiede la rete
+          // per definizione, quindi precaricarne l'SDK costerebbe a ogni
+          // installazione ~900 kB di codice inutilizzabile offline. E chi non
+          // usa il cloud non lo scarica mai.
+          globIgnores: ['**/gemini-*.js', '**/firebase-*.js'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
@@ -105,6 +109,21 @@ export default defineConfig(() => {
         },
       }),
     ],
+    build: {
+      rollupOptions: {
+        output: {
+          // Un nome prevedibile serve a escludere questi chunk dal precache:
+          // di default Rollup li chiamerebbe tutti `index.esm-<hash>.js` e non
+          // sarebbero distinguibili da nient'altro.
+          manualChunks(id: string) {
+            if (id.includes('node_modules/@firebase') || id.includes('node_modules/firebase')) {
+              return 'firebase';
+            }
+            return undefined;
+          },
+        },
+      },
+    },
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),

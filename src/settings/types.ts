@@ -19,6 +19,22 @@ export interface AppSettings {
    */
   authorId: string;
   authorName: string;
+
+  /**
+   * Progetto Firebase per la sincronizzazione, facoltativo.
+   *
+   * Questi valori non sono segreti: sono identificatori pubblici del progetto
+   * e finiscono comunque nel codice che gira nel browser. A proteggere i dati
+   * sono le regole di Firestore (firestore.rules), non la loro segretezza.
+   * Stanno qui, e non nel bundle, perche' ogni utente punti al proprio
+   * progetto invece che a uno comune da mantenere.
+   */
+  firebase?: {
+    apiKey: string;
+    authDomain: string;
+    projectId: string;
+    appId: string;
+  };
   /** Chiave API Gemini dell'utente. Stringa vuota = funzioni AI disattivate. */
   geminiApiKey: string;
   /** Id del modello Gemini. Modificabile a mano: i nomi cambiano nel tempo. */
