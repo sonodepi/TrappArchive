@@ -78,6 +78,35 @@ describe('parseTrack', () => {
     const track = parseTrack({ id: 'a1', audioFilePath: 'blob:http://x/1' });
     expect(track!.audio).toEqual({ kind: 'unavailable' });
   });
+
+  it('una traccia salvata con sporche e riletta le riconserva tutte', () => {
+    const track = parseTrack({
+      id: 'a1',
+      sporche: [
+        { id: 's1', testo: '(yeah)', riga: 0, dopoParola: 3 },
+        { id: 's2', testo: '(skrrt)', riga: -1, dopoParola: -1 },
+      ],
+    });
+    // riga -1 e' la sentinella "non agganciata" e resta cosi' com'e';
+    // dopoParola negativo invece non ha senso e viene riportato a 0.
+    expect(track!.sporche).toEqual([
+      { id: 's1', testo: '(yeah)', riga: 0, dopoParola: 3 },
+      { id: 's2', testo: '(skrrt)', riga: -1, dopoParola: 0 },
+    ]);
+  });
+
+  it('una traccia vecchia senza sporche si carica senza errori', () => {
+    const track = parseTrack({ id: 'a1', title: 'Vecchia' });
+    expect(track!.sporche).toBeUndefined();
+  });
+
+  it("scarta solo le sporche malformate, non l'intera traccia", () => {
+    const track = parseTrack({
+      id: 'a1',
+      sporche: [{ id: 's1', testo: '(ok)', riga: 0, dopoParola: 0 }, { id: 's2' }, 'nope', null],
+    });
+    expect(track!.sporche).toEqual([{ id: 's1', testo: '(ok)', riga: 0, dopoParola: 0 }]);
+  });
 });
 
 describe('parseList', () => {

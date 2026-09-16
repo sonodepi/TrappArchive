@@ -6,6 +6,7 @@ import {
   Loader2, KeyRound, Gauge, StopCircle, AlertTriangle, Wand2,
 } from 'lucide-react';
 import { getTunebatSearchUrl } from '../utils/tunebat';
+import { LyricsEditor } from './LyricsEditor';
 import { analyzeAudio, confidenceLabel, type AudioAnalysis } from '../audio/analyze';
 import { AudioStoreError, deleteAudio, putAudio } from '../storage/audioStore';
 import { loadAudioBlob } from '../storage/audioAccess';
@@ -795,11 +796,12 @@ export function TrackEditor({
               </div>
             )}
 
-            <textarea 
-              className="w-full flex-1 bg-black/40 border border-slate-900 rounded-xl p-4 focus:outline-none focus:border-blue-500 transition-colors resize-none placeholder:text-slate-600 font-mono text-sm leading-relaxed text-slate-200 shadow-inner custom-scrollbar min-h-[250px]"
-              placeholder="Incolla o scrivi qui il testo della canzone, strofe e ritornelli..."
-              value={track.lyrics}
-              onChange={e => setTrack({ ...track, lyrics: e.target.value })}
+            <LyricsEditor
+              lyrics={track.lyrics}
+              sporche={track.sporche ?? []}
+              onChange={({ lyrics, sporche }) =>
+                setTrack(prev => ({ ...prev, lyrics, sporche: sporche.length > 0 ? sporche : undefined }))
+              }
             />
           </div>
 

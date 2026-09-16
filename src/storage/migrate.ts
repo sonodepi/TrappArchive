@@ -7,8 +7,9 @@
  * dirlo all'utente invece di far sparire il catalogo in silenzio.
  */
 
-import type { Album, AudioSource, DraftAuthor, DraftBlock, DraftProject, Track } from '../types';
+import type { Album, AudioSource, DraftAuthor, DraftBlock, DraftProject, Sporca, Track } from '../types';
 import { MAX_AUTHORS } from '../types';
+import { ORPHAN_LINE } from '../components/lyrics/sporche';
 
 export interface ParseResult<T> {
   items: T[];
@@ -62,6 +63,31 @@ export function migrateAudioSource(raw: Record<string, unknown>): AudioSource | 
   return { kind: 'remote', url: legacyPath };
 }
 
+/**
+ * Una sporca è recuperabile se ha un id, un testo e i due indici numerici
+ * che la agganciano alla riga. Una voce malformata si scarta da sola: non
+ * deve far cadere né le altre sporche né la traccia che le contiene.
+ */
+function parseSporca(raw: unknown): Sporca | null {
+  if (!isRecord(raw)) return null;
+  const id = asString(raw.id);
+  const testo = asString(raw.testo);
+  if (!id || !testo) return null;
+  if (typeof raw.riga !== 'number' || !Number.isFinite(raw.riga)) return null;
+  if (typeof raw.dopoParola !== 'number' || !Number.isFinite(raw.dopoParola)) return null;
+  // -1 e' la sentinella "non agganciata": va conservata cosi' com'e', non
+  // riportata a 0, altrimenti una sporca orfana si ritroverebbe agganciata
+  // alla prima riga al primo ricaricamento.
+  const riga = Math.trunc(raw.riga) === ORPHAN_LINE ? ORPHAN_LINE : Math.max(0, Math.trunc(raw.riga));
+  return { id, testo, riga, dopoParola: Math.max(0, Math.trunc(raw.dopoParola)) };
+}
+
+function parseSporche(raw: unknown): Sporca[] | undefined {
+  if (!Array.isArray(raw)) return undefined;
+  const sporche = raw.map(parseSporca).filter((s): s is Sporca => s !== null);
+  return sporche.length > 0 ? sporche : undefined;
+}
+
 /** Una traccia è recuperabile se ha almeno un id e un titolo utilizzabili. */
 export function parseTrack(raw: unknown): Track | null {
   if (!isRecord(raw)) return null;
@@ -82,6 +108,7 @@ export function parseTrack(raw: unknown): Track | null {
     createdAt: asNumber(raw.createdAt, Date.now()),
     bpm: typeof raw.bpm === 'number' ? raw.bpm : undefined,
     key: typeof raw.key === 'string' ? raw.key : undefined,
+    sporche: parseSporche(raw.sporche),
   };
 }
 

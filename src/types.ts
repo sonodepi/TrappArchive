@@ -28,6 +28,25 @@ export interface Track {
   createdAt: number; // For sorting by date
   bpm?: number;
   key?: string;
+  /** Sporche (ad-libs). Facoltativo: le tracce vecchie non ce l'hanno. */
+  sporche?: Sporca[];
+}
+
+/**
+ * Una sporca (ad-lib) agganciata al testo.
+ *
+ * L'ancoraggio è unico — "dopo la parola N della riga" — e si presta a due
+ * rese: se `dopoParola` cade oltre l'ultima parola della riga, la sporca si
+ * disegna nella colonna a destra; se cade in mezzo, si disegna in linea, nel
+ * punto dove il verso si spezza. Stesso dato, due modi di vederlo.
+ */
+export interface Sporca {
+  id: string;
+  testo: string;
+  /** Indice della riga di `lyrics` a cui è agganciata (0 = prima riga). */
+  riga: number;
+  /** Dopo quale parola della riga. Oltre l'ultima = colonna a destra. */
+  dopoParola: number;
 }
 
 export interface Album {
