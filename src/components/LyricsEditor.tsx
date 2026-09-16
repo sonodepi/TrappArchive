@@ -29,9 +29,19 @@ import {
  */
 const METRICS = 'font-mono text-sm leading-6 whitespace-pre-wrap break-words';
 const INSET = 'px-3 py-3';
-/** Larghezza del margine dei numeri, e rientro corrispondente del testo. */
-const GUTTER = 'w-10';
+/** Rientro che lascia libero il margine dei numeri, uguale nelle due viste. */
 const GUTTER_INSET = 'pl-12';
+
+/**
+ * Le due colonne della vista divisa: il testo ha piu' bisogno di spazio delle
+ * ad libs, che quasi sempre sono una parola. A separarle bastano lo stacco e il
+ * colore - nessun righello, nessuna cella: sono due colonne di testo che
+ * scorrono, non una tabella.
+ */
+const WRITER_COL = 'flex-[3]';
+const ADLIB_COL = 'flex-[2]';
+const WRITER_PAD = 'pr-5';
+const ADLIB_PAD = 'pl-5';
 
 const INK = {
   writer: 'text-slate-200',
@@ -262,27 +272,40 @@ export function LyricsEditor({
   );
 
   const empty = value === '';
+  /**
+   * Le stesse righe della vista unita, ma su due colonne.
+   *
+   * Ogni barra e' una riga sola di questa impaginazione, alta quanto la piu'
+   * alta delle sue due colonne: se il testo va a capo tre volte, accanto ci
+   * sono tre righe di ad libs anche quando sono vuote, e la barra dopo riparte
+   * affiancata in tutte e due. E' l'altezza a essere condivisa, non una
+   * griglia: fra una barra e l'altra non c'e' nessuno stacco in piu'.
+   */
   const renderSplit = () => (
-    <div className={`flex flex-col flex-1 ${minHeightClass}`}>
-      <div className="flex items-stretch bg-black/30 border-b border-slate-900">
-        <div className={`${GUTTER} shrink-0`} />
-        <div className="flex-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-slate-400">
+    <div className={`flex flex-col flex-1 ${minHeightClass} ${INSET} ${GUTTER_INSET}`}>
+      <div className="flex items-stretch mb-1 select-none">
+        <div
+          className={`${WRITER_COL} ${WRITER_PAD} min-w-0 text-[10px] font-semibold uppercase tracking-wider text-slate-600`}
+        >
           Writer
         </div>
-        <div className="flex-1 px-3 py-1.5 text-[10px] font-semibold uppercase tracking-wider text-yellow-300/80 border-l border-slate-900">
+        <div
+          className={`${ADLIB_COL} ${ADLIB_PAD} min-w-0 text-[10px] font-semibold uppercase tracking-wider text-yellow-300/60`}
+        >
           Ad libs
         </div>
       </div>
 
       {bars.map(bar => (
-        <div key={bar.index} className="flex items-stretch border-b border-slate-900/50">
-          <div
-            className={`${GUTTER} shrink-0 pt-3 pr-2 text-right text-[11px] leading-6 text-slate-600 tabular-nums select-none`}
-          >
-            {bar.number ?? ''}
-          </div>
+        <div key={bar.index} className="relative flex items-stretch">
+          {bar.number !== null && (
+            <span className="absolute right-full top-0 mr-2 w-7 text-right text-[11px] leading-6 text-slate-600 tabular-nums select-none">
+              {bar.number}
+            </span>
+          )}
           <BarCell
-            className="flex-1 min-w-0"
+            className={`${WRITER_COL} min-w-0`}
+            inset={WRITER_PAD}
             label={`Barra ${bar.number ?? bar.index + 1}, testo`}
             value={shown(bar.index, 'writer', bar.writer)}
             ink={ink.writer}
@@ -296,7 +319,8 @@ export function LyricsEditor({
             onKeyDown={e => handleCellKeyDown(e, bar.index, 'writer')}
           />
           <BarCell
-            className="flex-1 min-w-0 border-l border-slate-900/50"
+            className={`${ADLIB_COL} min-w-0`}
+            inset={ADLIB_PAD}
             label={`Barra ${bar.number ?? bar.index + 1}, ad libs`}
             value={shown(bar.index, 'adlibs', bar.adlibs)}
             ink={ink.adlib}
@@ -367,6 +391,7 @@ function BarCell({
   value,
   label,
   ink,
+  inset,
   readOnly,
   placeholder,
   onInput,
@@ -378,6 +403,8 @@ function BarCell({
   value: string;
   label: string;
   ink: string;
+  /** Lo stacco dall'altra colonna. Uguale sui due strati, o si sfalsano. */
+  inset: string;
   readOnly: boolean;
   placeholder?: string;
   onInput: (value: string, caret: number) => void;
@@ -393,7 +420,7 @@ function BarCell({
         quanto serve a contenerlo invece di tagliarlo, che in una colonna
         stretta succede quasi sempre.
       */}
-      <div aria-hidden className={`${METRICS} ${INSET} ${ink} select-none pointer-events-none`}>
+      <div aria-hidden className={`${METRICS} ${inset} ${ink} select-none pointer-events-none`}>
         {value === '' ? <span className="text-slate-700">{placeholder || '\u200B'}</span> : value}
       </div>
       <textarea
@@ -406,7 +433,7 @@ function BarCell({
         onBlur={onBlur}
         onChange={e => onInput(e.target.value, e.target.selectionStart ?? e.target.value.length)}
         onKeyDown={onKeyDown}
-        className={`absolute inset-0 w-full h-full resize-none overflow-hidden bg-transparent text-transparent caret-blue-400 focus:outline-none placeholder:text-slate-700 ${METRICS} ${INSET}`}
+        className={`absolute inset-0 w-full h-full resize-none overflow-hidden bg-transparent text-transparent caret-blue-400 focus:outline-none placeholder:text-slate-700 ${METRICS} ${inset}`}
       />
     </div>
   );
