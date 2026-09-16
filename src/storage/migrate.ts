@@ -197,6 +197,7 @@ export function parseDraft(raw: unknown): DraftProject | null {
     updatedAt: asNumber(raw.updatedAt, Date.now()),
     bpm: typeof raw.bpm === 'number' ? raw.bpm : undefined,
     key: typeof raw.key === 'string' ? raw.key : undefined,
+    shareSessionId: typeof raw.shareSessionId === 'string' && raw.shareSessionId ? raw.shareSessionId : undefined,
   };
 }
 
