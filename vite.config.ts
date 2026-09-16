@@ -77,15 +77,11 @@ export default defineConfig(() => {
         },
         workbox: {
           globPatterns: ['**/*.{js,css,html,ico,png,svg,woff,woff2}'],
-          // Il chunk dell'SDK Gemini non va precaricato: serve solo alla
-          // trascrizione, che richiede comunque una connessione. Precaricarlo
-          // significherebbe scaricare ~390 kB all'installazione per codice che
-          // offline non potrebbe mai essere usato.
-          // Stessa ragione per Firebase: la sincronizzazione richiede la rete
-          // per definizione, quindi precaricarne l'SDK costerebbe a ogni
-          // installazione ~900 kB di codice inutilizzabile offline. E chi non
-          // usa il cloud non lo scarica mai.
-          globIgnores: ['**/gemini-*.js', '**/firebase-*.js'],
+          // Il chunk dell'SDK Firebase non va precaricato: la sincronizzazione
+          // richiede la rete per definizione, quindi precaricarlo costerebbe a
+          // ogni installazione ~900 kB di codice inutilizzabile offline. Chi
+          // non usa il cloud non lo scarica mai.
+          globIgnores: ['**/firebase-*.js'],
           runtimeCaching: [
             {
               urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,

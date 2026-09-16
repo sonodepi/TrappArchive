@@ -70,8 +70,3 @@ export function useSettings() {
 
   return { settings, update };
 }
-
-/** True se le funzioni AI sono utilizzabili. */
-export function hasAiCredentials(settings: AppSettings): boolean {
-  return settings.geminiApiKey.trim().length > 0;
-}

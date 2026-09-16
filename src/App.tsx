@@ -265,7 +265,6 @@ export default function App() {
               onUpdate={handleUpdateTrack}
               onDelete={handleDeleteTrack}
               settings={settings}
-              onOpenSettings={() => setActiveTab('settings')}
             />
           )}
           {activeTab === 'albums' && (

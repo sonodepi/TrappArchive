@@ -1,21 +1,16 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Track, DraftProject } from '../types';
 import {
-  Save, Folder, AlertCircle, Plus, Minus, Trash2,
+  Save, Folder, Plus, Minus, Trash2,
   ExternalLink, Music2, RefreshCw, CheckCircle2,
-  Loader2, KeyRound, Gauge, StopCircle, AlertTriangle, Wand2,
+  Loader2, Gauge, StopCircle, AlertTriangle,
 } from 'lucide-react';
 import { getTunebatSearchUrl } from '../utils/tunebat';
 import { LyricsEditor } from './LyricsEditor';
 import { analyzeAudio, confidenceLabel, type AudioAnalysis } from '../audio/analyze';
 import { AudioStoreError, deleteAudio, putAudio } from '../storage/audioStore';
 import { loadAudioBlob } from '../storage/audioAccess';
-import { PHASE_LABELS, type TranscribePhase } from '../services/gemini-types';
 import type { AppSettings } from '../settings/types';
-import { hasAiCredentials } from '../settings/store';
-
-/** Cosa fare quando la trascrizione arriva ma un testo esiste già. */
-type PendingLyrics = { text: string; existing: string } | null;
 
 export function TrackEditor({
   onSave,
@@ -24,7 +19,6 @@ export function TrackEditor({
   onUpdate,
   onDelete,
   settings,
-  onOpenSettings,
 }: {
   onSave: (t: Track) => void,
   editTrack?: Track | null,
@@ -32,17 +26,15 @@ export function TrackEditor({
   onUpdate?: (t: Track) => void,
   onDelete?: (id: string) => void,
   settings: AppSettings,
-  onOpenSettings: () => void,
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   /**
-   * Il File selezionato in questa sessione. Serve perché analisi e trascrizione
-   * lavorano sui byte, non sul percorso: audioFilePath contiene un blob: URL che
-   * non sopravvive a un ricaricamento della pagina.
+   * Il File selezionato in questa sessione. Serve perché l'analisi lavora sui
+   * byte, non sul percorso: audioFilePath contiene un blob: URL che non
+   * sopravvive a un ricaricamento della pagina.
    */
   const audioFileRef = useRef<File | null>(null);
   const analysisAbortRef = useRef<AbortController | null>(null);
-  const transcribeAbortRef = useRef<AbortController | null>(null);
 
   const defaultTrack: Track = {
     id: crypto.randomUUID(),
@@ -64,14 +56,8 @@ export function TrackEditor({
   const [analysis, setAnalysis] = useState<AudioAnalysis | null>(null);
   const [analysisError, setAnalysisError] = useState<string | null>(null);
 
-  // Trascrizione AI: richiede chiave e rete.
-  const [transcribePhase, setTranscribePhase] = useState<TranscribePhase | null>(null);
-  const [transcribeError, setTranscribeError] = useState<string | null>(null);
-  const [pendingLyrics, setPendingLyrics] = useState<PendingLyrics>(null);
-
   const [titleError, setTitleError] = useState(false);
 
-  const aiReady = hasAiCredentials(settings);
   /** C'e' un audio su cui si puo' davvero lavorare. */
   const hasUsableAudio = !!track.audio && track.audio.kind !== 'unavailable';
 
@@ -149,69 +135,6 @@ export function TrackEditor({
     setIsAnalyzing(false);
   };
 
-  /** Trascrizione del testo con Gemini. */
-  const runTranscription = async () => {
-    if (!aiReady) {
-      setTranscribeError('Configura la tua chiave Gemini in Impostazioni.');
-      return;
-    }
-    transcribeAbortRef.current?.abort();
-    const controller = new AbortController();
-    transcribeAbortRef.current = controller;
-
-    setTranscribeError(null);
-    setTranscribePhase('decoding');
-    try {
-      const blob = await resolveAudioBlob();
-      // Import dinamico: l'SDK Gemini (~400 kB) viene scaricato solo ora, non
-      // all'avvio dell'app. Chi non usa l'AI non lo paga mai.
-      const { transcribeAudio } = await import('../services/gemini');
-      const result = await transcribeAudio({
-        audio: blob,
-        apiKey: settings.geminiApiKey,
-        model: settings.geminiModel,
-        language: settings.transcriptionLanguage,
-        signal: controller.signal,
-        onPhase: setTranscribePhase,
-      });
-
-      // Mai sovrascrivere in silenzio un testo già scritto.
-      if (track.lyrics.trim()) {
-        setPendingLyrics({ text: result.lyrics, existing: track.lyrics });
-      } else {
-        setTrack(prev => ({ ...prev, lyrics: result.lyrics }));
-      }
-    } catch (err) {
-      if (err instanceof DOMException && err.name === 'AbortError') {
-        setTranscribePhase(null);
-        return;
-      }
-      // Gli errori del client sono già messaggi pronti per l'utente.
-      setTranscribeError(
-        err instanceof Error ? err.message : 'Trascrizione non riuscita.',
-      );
-    } finally {
-      setTranscribePhase(null);
-    }
-  };
-
-  const cancelTranscription = () => {
-    transcribeAbortRef.current?.abort();
-    setTranscribePhase(null);
-  };
-
-  const applyPendingLyrics = (mode: 'replace' | 'append') => {
-    if (!pendingLyrics) return;
-    setTrack(prev => ({
-      ...prev,
-      lyrics:
-        mode === 'replace'
-          ? pendingLyrics.text
-          : `${pendingLyrics.existing.trimEnd()}\n\n${pendingLyrics.text}`,
-    }));
-    setPendingLyrics(null);
-  };
-
   const handleFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -219,7 +142,6 @@ export function TrackEditor({
 
     audioFileRef.current = file;
     setAnalysis(null);
-    setTranscribeError(null);
     setAnalysisError(null);
 
     // I byte vengono archiviati subito: e' cio' che li fa sopravvivere al
@@ -253,7 +175,6 @@ export function TrackEditor({
 
   const handleRemoveAudio = () => {
     cancelAnalysis();
-    cancelTranscription();
     audioFileRef.current = null;
     // Via anche dall'archivio: un file scollegato dalla traccia non e' piu'
     // raggiungibile da nessuna parte e occuperebbe spazio per sempre.
@@ -690,111 +611,7 @@ export function TrackEditor({
               <label className="block text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Testo & Rime (Lyrics)
               </label>
-              
-              {transcribePhase ? (
-                <button
-                  type="button"
-                  onClick={cancelTranscription}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 rounded-full text-xs font-medium transition-colors border border-rose-500/20 min-h-[36px]"
-                >
-                  <StopCircle className="w-3.5 h-3.5" />
-                  <span>Annulla</span>
-                </button>
-              ) : (
-                <button
-                  type="button"
-                  onClick={runTranscription}
-                  disabled={!hasUsableAudio}
-                  title={
-                    !hasUsableAudio
-                      ? 'Carica prima un file audio'
-                      : !aiReady
-                        ? 'Richiede una chiave Gemini: configurala in Impostazioni'
-                        : 'Trascrivi il testo con Gemini'
-                  }
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-500/10 hover:bg-blue-500/20 text-blue-400 rounded-full text-xs font-medium transition-colors border border-blue-500/20 disabled:opacity-40 min-h-[36px]"
-                >
-                  <Wand2 className="w-3.5 h-3.5" />
-                  <span>Trascrivi con AI</span>
-                </button>
-              )}
             </div>
-            
-            {transcribePhase && (
-              <div className="mb-3 p-3 bg-blue-900/20 border border-blue-500/30 rounded-xl flex items-center gap-2.5 text-xs text-blue-200 shrink-0">
-                <Loader2 className="w-4 h-4 shrink-0 text-blue-400 animate-spin" />
-                <span>{PHASE_LABELS[transcribePhase]}</span>
-              </div>
-            )}
-
-            {!aiReady && !transcribePhase && (
-              <div className="mb-3 p-3 bg-slate-900/60 border border-slate-800 rounded-xl flex items-start gap-2.5 text-xs text-slate-300 shrink-0">
-                <KeyRound className="w-4 h-4 shrink-0 text-slate-400 mt-0.5" />
-                <p>
-                  La trascrizione automatica richiede una chiave Gemini.{' '}
-                  <button
-                    type="button"
-                    onClick={onOpenSettings}
-                    className="text-blue-400 hover:text-blue-300 underline underline-offset-2"
-                  >
-                    Configurala in Impostazioni
-                  </button>
-                  . Tutto il resto funziona senza.
-                </p>
-              </div>
-            )}
-
-            {transcribeError && (
-              <div className="mb-3 p-3 bg-rose-900/20 border border-rose-500/30 rounded-xl flex items-start gap-2.5 text-xs text-rose-200 shrink-0">
-                <AlertCircle className="w-4 h-4 shrink-0 text-rose-400 mt-0.5" />
-                <div className="min-w-0">
-                  <p>{transcribeError}</p>
-                  <button
-                    type="button"
-                    onClick={() => setTranscribeError(null)}
-                    className="mt-1 text-rose-300/80 hover:text-rose-200 underline underline-offset-2"
-                  >
-                    Chiudi
-                  </button>
-                </div>
-              </div>
-            )}
-
-            {/* Un testo già scritto non viene mai sovrascritto in silenzio. */}
-            {pendingLyrics && (
-              <div className="mb-3 p-3 bg-amber-950/30 border border-amber-500/30 rounded-xl space-y-2.5 text-xs shrink-0">
-                <p className="text-amber-200">
-                  La trascrizione è pronta, ma questa traccia ha già un testo.
-                  Cosa vuoi farne?
-                </p>
-                <div className="max-h-24 overflow-y-auto custom-scrollbar bg-black/40 border border-slate-800 rounded-lg p-2 font-mono text-[11px] text-slate-300 whitespace-pre-wrap">
-                  {pendingLyrics.text}
-                </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => applyPendingLyrics('replace')}
-                    className="px-3 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-semibold transition-colors min-h-[36px]"
-                  >
-                    Sostituisci
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => applyPendingLyrics('append')}
-                    className="px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-lg font-semibold transition-colors min-h-[36px]"
-                  >
-                    Accoda
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setPendingLyrics(null)}
-                    className="px-3 py-2 text-slate-400 hover:text-slate-200 transition-colors min-h-[36px]"
-                  >
-                    Annulla
-                  </button>
-                </div>
-              </div>
-            )}
 
             <LyricsEditor
               lyrics={track.lyrics}
