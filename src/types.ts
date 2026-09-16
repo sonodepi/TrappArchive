@@ -105,4 +105,11 @@ export interface DraftProject {
   updatedAt: number;
   bpm?: number;
   key?: string;
+  /**
+   * Id della finestra di condivisione aperta dal capo. Assente = chiusa.
+   * Un codice cifrato porta con se' l'id di quando e' stato generato: si
+   * puo' unire solo se combacia con quello attualmente aperto qui. Vedi
+   * src/drafts/share.ts.
+   */
+  shareSessionId?: string;
 }

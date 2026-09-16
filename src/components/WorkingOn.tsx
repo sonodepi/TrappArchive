@@ -1,16 +1,19 @@
-import React, { useMemo, useRef, useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { MAX_AUTHORS, type DraftBlock, type DraftProject } from '../types';
 import { extractYoutubeId } from '../utils';
 import {
-  AlignLeft, ArrowLeft, Plus, Users, CheckCircle, Lock, PenTool, Trash2,
-  ArrowRightToLine, X, AlertTriangle, Download, Upload, Youtube, Merge,
-  UserPlus, Hand,
+  AlignLeft, ArrowLeft, Plus, Users, CheckCircle, Lock, LockOpen, PenTool, Trash2,
+  ArrowRightToLine, X, AlertTriangle, KeyRound, Copy, ClipboardPaste, Youtube, Merge,
+  UserPlus, Hand, Loader2,
 } from 'lucide-react';
-import { parseDraft } from '../storage/migrate';
 import {
   authorColor, canAddAuthor, canEditBlock, describeMerge, isOwner,
   makeBlock, mergeBlocks, mergeDrafts, nextBlockLabel,
 } from '../drafts/collab';
+import {
+  canMergeIntoOpenWindow, closeShareWindow, decryptDraft, encryptDraft,
+  generatePassphrase, openShareWindow,
+} from '../drafts/share';
 import type { AppSettings } from '../settings/types';
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null;
@@ -33,7 +36,7 @@ export function WorkingOn({
   const [urlInput, setUrlInput] = useState('');
   const [draftToDelete, setDraftToDelete] = useState<DraftProject | null>(null);
   const [nameInput, setNameInput] = useState(settings.authorName);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const [showImportPanel, setShowImportPanel] = useState(false);
 
   const me = settings.authorId;
   const myName = settings.authorName.trim();
@@ -70,78 +73,72 @@ export function WorkingOn({
     setUrlInput('');
   };
 
-  /** Scrive la bozza su file: e' il trasporto, al posto di un server. */
-  const exportDraft = (draft: DraftProject) => {
-    const payload = { app: 'TrappArchive', kind: 'draft', version: 2, draft };
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `bozza_${(draft.title || 'senza_titolo').replace(/\s+/g, '_').toLowerCase()}.json`;
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-    setNotice({ kind: 'ok', text: 'Bozza salvata come file: mandala a chi deve scrivere.' });
-  };
-
-  const handleImportDraft = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    e.target.value = '';
+  /**
+   * Un codice ricevuto: o e' una bozza nuova (ci entro come collaboratore) o
+   * e' un aggiornamento di una che ho gia' (la unisco). Sostituisce lo
+   * scambio-file: stessa logica di prima, cambia solo il trasporto.
+   */
+  const handleIncomingCode = async (code: string, passphrase: string): Promise<boolean> => {
     setNotice(null);
+    const trimmedCode = code.trim();
+    if (!trimmedCode || !passphrase) {
+      setNotice({ kind: 'error', text: 'Servono sia il codice sia la password.' });
+      return false;
+    }
 
-    const reader = new FileReader();
-    reader.onerror = () => setNotice({ kind: 'error', text: 'Impossibile leggere il file.' });
-    reader.onload = event => {
-      let parsed: unknown;
-      try {
-        parsed = JSON.parse(String(event.target?.result ?? ''));
-      } catch {
-        setNotice({ kind: 'error', text: 'Il file non è un JSON valido.' });
-        return;
-      }
-
-      const incoming = parseDraft((parsed as { draft?: unknown })?.draft ?? parsed);
-      if (!incoming) {
-        setNotice({ kind: 'error', text: 'Questo file non contiene una bozza di TrappArchive.' });
-        return;
-      }
-
-      const mine = drafts.find(d => d.id === incoming.id);
-      if (!mine) {
-        // Bozza di qualcun altro: entro come collaboratore, e mi aggiungo agli
-        // autori se c'e' ancora posto.
-        const hasRoom = canAddAuthor(incoming) && !incoming.authors.some(a => a.id === me);
-        const joined = hasRoom
-          ? {
-              ...incoming,
-              authors: [...incoming.authors, {
-                id: me, name: myName || 'Io', colorIndex: incoming.authors.length,
-              }],
-            }
-          : incoming;
-        setDrafts([...drafts, joined]);
-        setActiveDraftId(joined.id);
-        setUrlInput(joined.beatUrl);
-        setNotice({
-          kind: 'ok',
-          text: hasRoom || incoming.authors.some(a => a.id === me)
-            ? `Sei entrato in "${joined.title}".`
-            : `Aperta "${joined.title}" in sola lettura: è già al massimo di ${MAX_AUTHORS} persone.`,
-        });
-        return;
-      }
-
-      const report = mergeDrafts(mine, incoming);
-      setDrafts(drafts.map(d => (d.id === report.draft.id ? report.draft : d)));
-      setActiveDraftId(report.draft.id);
+    const result = await decryptDraft(trimmedCode, passphrase);
+    if (!result.ok) {
       setNotice({
-        kind: report.conflicts.length > 0 ? 'error' : 'ok',
-        text: describeMerge(report),
+        kind: 'error',
+        text: result.reason === 'password'
+          ? 'Codice o password sbagliati: non si apre.'
+          : 'Questo codice non è valido o è incompleto.',
       });
-    };
-    reader.readAsText(file);
+      return false;
+    }
+    const incoming = result.draft;
+
+    const mine = drafts.find(d => d.id === incoming.id);
+    if (!mine) {
+      // Bozza di qualcun altro: entro come collaboratore, e mi aggiungo agli
+      // autori se c'e' ancora posto.
+      const hasRoom = canAddAuthor(incoming) && !incoming.authors.some(a => a.id === me);
+      const joined = hasRoom
+        ? {
+            ...incoming,
+            authors: [...incoming.authors, {
+              id: me, name: myName || 'Io', colorIndex: incoming.authors.length,
+            }],
+          }
+        : incoming;
+      setDrafts([...drafts, joined]);
+      setActiveDraftId(joined.id);
+      setUrlInput(joined.beatUrl);
+      setNotice({
+        kind: 'ok',
+        text: hasRoom || incoming.authors.some(a => a.id === me)
+          ? `Sei entrato in "${joined.title}".`
+          : `Aperta "${joined.title}" in sola lettura: è già al massimo di ${MAX_AUTHORS} persone.`,
+      });
+      return true;
+    }
+
+    if (!canMergeIntoOpenWindow(mine, incoming)) {
+      setNotice({
+        kind: 'error',
+        text: 'La finestra di condivisione di questa bozza è chiusa: riaprila prima di incollare un codice.',
+      });
+      return false;
+    }
+
+    const report = mergeDrafts(mine, incoming);
+    setDrafts(drafts.map(d => (d.id === report.draft.id ? report.draft : d)));
+    setActiveDraftId(report.draft.id);
+    setNotice({
+      kind: report.conflicts.length > 0 ? 'error' : 'ok',
+      text: describeMerge(report),
+    });
+    return true;
   };
 
   const confirmDelete = () => {
@@ -229,19 +226,12 @@ export function WorkingOn({
           </div>
 
           <div className="flex flex-wrap items-center gap-2.5">
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".json,application/json"
-              onChange={handleImportDraft}
-              className="hidden"
-            />
             <button
-              onClick={() => fileInputRef.current?.click()}
+              onClick={() => setShowImportPanel(v => !v)}
               className="bg-white/5 hover:bg-white/10 text-slate-200 px-4 py-2.5 rounded-xl text-sm font-medium transition-colors flex items-center gap-2 border border-white/5 min-h-[44px]"
-              title="Apri una bozza che ti hanno mandato"
+              title="Incolla il codice che ti ha mandato chi scrive con te"
             >
-              <Upload size={16} /> Apri bozza ricevuta
+              <ClipboardPaste size={16} /> Incolla un codice
             </button>
             <button
               onClick={createDraft}
@@ -251,6 +241,13 @@ export function WorkingOn({
             </button>
           </div>
         </div>
+
+        {showImportPanel && (
+          <ImportCodePanel
+            onSubmit={handleIncomingCode}
+            onClose={() => setShowImportPanel(false)}
+          />
+        )}
 
         {notice && <NoticeBar notice={notice} onClose={() => setNotice(null)} />}
 
@@ -350,7 +347,7 @@ export function WorkingOn({
       onBack={() => setActiveDraftId(null)}
       onUpdateDraft={patch => updateDraft(activeDraft.id, patch)}
       onUpdateBlock={(blockId, patch) => updateBlock(activeDraft, blockId, patch)}
-      onExport={() => exportDraft(activeDraft)}
+      onImportCode={handleIncomingCode}
       onSendToTrack={onSendToTrack}
       onDelete={() => setDraftToDelete(activeDraft)}
       deleteDialog={deleteDialog}
@@ -404,9 +401,132 @@ function DeleteDialog({
   );
 }
 
+/**
+ * Codice + password per sbloccare una bozza ricevuta. `compact` la rende
+ * adatta alla colonna laterale di una bozza già aperta (per incollare un
+ * aggiornamento); senza, e' il pannello a tutta larghezza dell'elenco bozze
+ * (per entrare in una bozza nuova).
+ */
+function ImportCodePanel({
+  onSubmit, onClose, compact,
+}: {
+  onSubmit: (code: string, passphrase: string) => Promise<boolean>;
+  onClose?: () => void;
+  compact?: boolean;
+}) {
+  const [code, setCode] = useState('');
+  const [passphrase, setPassphrase] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
+    setBusy(true);
+    const ok = await onSubmit(code, passphrase);
+    setBusy(false);
+    if (ok) {
+      setCode('');
+      setPassphrase('');
+      onClose?.();
+    }
+  };
+
+  return (
+    <div
+      className={
+        compact
+          ? 'space-y-2 pt-2 border-t border-slate-900'
+          : 'mb-5 p-4 bg-white/[0.02] border border-slate-900 rounded-2xl space-y-2.5'
+      }
+    >
+      {compact ? (
+        <h4 className="text-[10px] font-bold text-slate-500 uppercase tracking-wider">Incolla un codice ricevuto</h4>
+      ) : (
+        <div className="flex items-center justify-between">
+          <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider">Incolla un codice ricevuto</h3>
+          {onClose && (
+            <button onClick={onClose} aria-label="Chiudi" className="text-slate-500 hover:text-slate-200 transition-colors">
+              <X size={14} />
+            </button>
+          )}
+        </div>
+      )}
+      <textarea
+        value={code}
+        onChange={e => setCode(e.target.value)}
+        placeholder="Incolla qui il codice..."
+        rows={compact ? 2 : 3}
+        className="w-full bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs font-mono text-slate-300 focus:outline-none focus:border-blue-500 resize-none custom-scrollbar"
+      />
+      <div className="flex gap-2">
+        <input
+          type="text"
+          value={passphrase}
+          onChange={e => setPassphrase(e.target.value)}
+          placeholder="Password"
+          className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 min-h-[36px]"
+        />
+        <button
+          onClick={submit}
+          disabled={busy || !code.trim() || !passphrase}
+          className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 min-h-[36px] shrink-0"
+        >
+          {busy ? <Loader2 size={13} className="animate-spin" /> : <ClipboardPaste size={13} />}
+          Sblocca
+        </button>
+      </div>
+    </div>
+  );
+}
+
+/** Un campo di sola lettura con un bottone «Copia»: per il codice e la password generati. */
+function CopyField({ label, value, multiline }: { label: string; value: string; multiline?: boolean }) {
+  const [copied, setCopied] = useState(false);
+
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Senza clipboard API il testo resta comunque selezionabile a mano.
+    }
+  };
+
+  return (
+    <div>
+      <label className="block text-[10px] text-slate-500 uppercase tracking-wider mb-1">{label}</label>
+      <div className="flex gap-2">
+        {multiline ? (
+          <textarea
+            readOnly
+            aria-label={label}
+            value={value}
+            rows={3}
+            onFocus={e => e.target.select()}
+            className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-300 resize-none custom-scrollbar"
+          />
+        ) : (
+          <input
+            readOnly
+            aria-label={label}
+            value={value}
+            onFocus={e => e.target.select()}
+            className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs font-mono text-slate-300"
+          />
+        )}
+        <button
+          onClick={copy}
+          className="shrink-0 px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-lg text-[11px] font-semibold flex items-center gap-1.5 min-h-[36px]"
+        >
+          <Copy size={12} /> {copied ? 'Copiato' : 'Copia'}
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function DraftEditor({
   draft, me, myName, urlInput, setUrlInput, notice, setNotice,
-  onBack, onUpdateDraft, onUpdateBlock, onExport, onSendToTrack, onDelete, deleteDialog,
+  onBack, onUpdateDraft, onUpdateBlock, onImportCode, onSendToTrack, onDelete, deleteDialog,
 }: {
   draft: DraftProject;
   me: string;
@@ -418,7 +538,7 @@ function DraftEditor({
   onBack: () => void;
   onUpdateDraft: (patch: Partial<DraftProject>) => void;
   onUpdateBlock: (blockId: string, patch: Partial<DraftBlock>) => void;
-  onExport: () => void;
+  onImportCode: (code: string, passphrase: string) => Promise<boolean>;
   onSendToTrack?: (draft: DraftProject) => void;
   onDelete: () => void;
   deleteDialog: React.ReactNode;
@@ -429,6 +549,33 @@ function DraftEditor({
     () => new Map(draft.authors.map(a => [a.id, a])),
     [draft.authors],
   );
+
+  const [shareCode, setShareCode] = useState<string | null>(null);
+  const [sharePassphrase, setSharePassphrase] = useState<string | null>(null);
+  const [shareBusy, setShareBusy] = useState(false);
+
+  const shareOpen = !!draft.shareSessionId;
+
+  const handleOpenShare = () => {
+    onUpdateDraft(openShareWindow(draft));
+    setShareCode(null);
+    setSharePassphrase(null);
+  };
+
+  const handleCloseShare = () => {
+    onUpdateDraft(closeShareWindow(draft));
+    setShareCode(null);
+    setSharePassphrase(null);
+  };
+
+  const handleGenerateCode = async () => {
+    setShareBusy(true);
+    const passphrase = generatePassphrase();
+    const code = await encryptDraft(draft, passphrase);
+    setSharePassphrase(passphrase);
+    setShareCode(code);
+    setShareBusy(false);
+  };
 
   const addBlock = () => {
     onUpdateDraft({ blocks: [...draft.blocks, makeBlock(nextBlockLabel(draft.blocks), null)] });
@@ -498,13 +645,6 @@ function DraftEditor({
         </div>
 
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={onExport}
-            className="flex items-center gap-2 px-3.5 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-xl text-xs font-semibold transition-colors min-h-[44px]"
-            title="Salva la bozza come file da mandare agli altri"
-          >
-            <Download size={15} /> Passa la bozza
-          </button>
           {owner && (
             <button
               onClick={doMerge}
@@ -651,8 +791,64 @@ function DraftEditor({
           )}
         </div>
 
-        {/* Colonna laterale: base e testo unito */}
+        {/* Colonna laterale: condivisione, base e testo unito */}
         <div className="flex flex-col gap-4 min-h-0">
+          <div className="bg-white/[0.02] border border-slate-900 rounded-2xl p-4 space-y-3">
+            <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
+              {shareOpen ? <LockOpen size={14} className="text-emerald-400" /> : <KeyRound size={14} className="text-slate-400" />}
+              Condivisione
+            </h3>
+
+            {owner ? (
+              <div className="flex items-center justify-between gap-2">
+                <p className="text-[11px] text-slate-500">
+                  {shareOpen
+                    ? 'Finestra aperta: i codici di questa sessione possono essere uniti.'
+                    : 'Finestra chiusa: nessun codice entra nella bozza finché non la riapri.'}
+                </p>
+                <button
+                  onClick={shareOpen ? handleCloseShare : handleOpenShare}
+                  className={`shrink-0 px-3 py-2 rounded-lg text-[11px] font-semibold transition-colors min-h-[36px] border ${
+                    shareOpen
+                      ? 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-300 border-rose-500/30'
+                      : 'bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-300 border-emerald-500/30'
+                  }`}
+                >
+                  {shareOpen ? 'Chiudi' : 'Apri'}
+                </button>
+              </div>
+            ) : (
+              <p className="text-[11px] text-slate-500">
+                Solo {authorById.get(draft.ownerId)?.name ?? 'chi ha creato la bozza'} può aprire o
+                chiudere la condivisione.
+              </p>
+            )}
+
+            {shareOpen && (
+              <div className="space-y-2 pt-1 border-t border-slate-900">
+                <button
+                  onClick={handleGenerateCode}
+                  disabled={shareBusy}
+                  className="w-full flex items-center justify-center gap-2 px-3 py-2 bg-blue-600/15 hover:bg-blue-600/25 text-blue-300 border border-blue-500/30 rounded-lg text-[11px] font-semibold transition-colors min-h-[36px] disabled:opacity-50"
+                >
+                  {shareBusy ? <Loader2 size={13} className="animate-spin" /> : <KeyRound size={13} />}
+                  {shareCode ? 'Rigenera codice (con le modifiche di adesso)' : 'Genera codice da mandare'}
+                </button>
+                {shareCode && (
+                  <div className="space-y-2">
+                    <CopyField label="Password (mandala per un altro canale)" value={sharePassphrase ?? ''} />
+                    <CopyField label="Codice" value={shareCode} multiline />
+                    <p className="text-[10px] text-slate-500">
+                      Manda codice e password separati — un messaggio e una chiamata, non lo stesso posto.
+                    </p>
+                  </div>
+                )}
+              </div>
+            )}
+
+            <ImportCodePanel compact onSubmit={onImportCode} />
+          </div>
+
           <div className="bg-white/[0.02] border border-slate-900 rounded-2xl p-4 space-y-3">
             <h3 className="text-xs font-bold text-slate-300 uppercase tracking-wider flex items-center gap-2">
               <Youtube size={14} className="text-rose-500" /> Base
