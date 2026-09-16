@@ -1,6 +1,5 @@
 {
   "name": "TrappArchive",
   "description": "Catalogo musicale personale, gestione tracce, album, testi e bozze collaborative scaricabile e utilizzabile al 100% offline (PWA).",
-  "requestFramePermissions": [],
-  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+  "requestFramePermissions": []
 }

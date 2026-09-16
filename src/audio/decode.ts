@@ -1,11 +1,10 @@
 /**
- * Decodifica audio condivisa fra la trascrizione AI (che invia a Gemini) e
- * l'analisi BPM/tonalità (che lavora sui campioni).
+ * Decodifica audio per l'analisi locale di BPM e tonalità.
  *
- * Entrambe hanno bisogno della stessa cosa: campioni mono a una frequenza nota.
- * decodeAudioData e OfflineAudioContext esistono solo sul thread principale,
- * quindi la decodifica avviene qui e il Float32Array risultante viene poi
- * trasferito al Web Worker senza copia.
+ * Serve una cosa sola: campioni mono a una frequenza nota. decodeAudioData e
+ * OfflineAudioContext esistono solo sul thread principale, quindi la
+ * decodifica avviene qui e il Float32Array risultante viene poi trasferito al
+ * Web Worker senza copia.
  */
 
 export interface DecodedAudio {

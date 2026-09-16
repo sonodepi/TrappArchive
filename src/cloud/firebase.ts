@@ -8,9 +8,6 @@
  * (vedi `firestore.rules`): senza quelle, nascondere la chiave non servirebbe
  * a niente; con quelle, esporla non fa danno.
  *
- * È diverso dalla chiave Gemini, che invece è un segreto di fatturazione e per
- * questo sta solo in `localStorage` e non entra mai nel bundle.
- *
  * La configurazione la mette l'utente nelle Impostazioni: così ognuno punta al
  * proprio progetto Firebase e l'app resta libera, senza un backend comune da
  * mantenere.

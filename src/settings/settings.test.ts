@@ -37,10 +37,10 @@ describe('identita’ locale per la collaborazione', () => {
   });
 
   it('ne genera uno per una configurazione salvata prima di questa versione', () => {
-    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ geminiApiKey: 'x' }));
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({ keyProfile: 'krumhansl' }));
     const settings = loadSettings();
     expect(settings.authorId).toBeTruthy();
-    expect(settings.geminiApiKey).toBe('x');
+    expect(settings.keyProfile).toBe('krumhansl');
   });
 
   it('due archivi distinti producono identita’ diverse', () => {
