@@ -265,6 +265,7 @@ export default function App() {
               onUpdate={handleUpdateTrack}
               onDelete={handleDeleteTrack}
               settings={settings}
+              onUpdateSettings={updateSettings}
               onOpenSettings={() => setActiveTab('settings')}
             />
           )}

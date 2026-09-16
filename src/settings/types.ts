@@ -7,6 +7,11 @@
  * chiavi trapparchive_tracks / _albums / _drafts, mai SETTINGS_STORAGE_KEY).
  */
 
+// La preferenza di formato appartiene al testo, non alle impostazioni: qui
+// viene solo conservata, e si riesporta perche' le schermate la leggono da qui.
+import type { LyricsFormat } from '../lyrics/bars';
+export type { LyricsFormat };
+
 export type KeyProfileName = 'krumhansl' | 'temperley' | 'albrecht';
 
 export type TranscriptionLanguage = 'it' | 'en' | 'es' | 'fr' | 'auto';
@@ -43,6 +48,12 @@ export interface AppSettings {
   transcriptionLanguage: TranscriptionLanguage;
   /** Profilo di riferimento per il rilevamento della tonalità. */
   keyProfile: KeyProfileName;
+  /**
+   * Come mostrare il testo: tutto insieme con le ad libs in giallo, oppure
+   * diviso in due colonne. E' solo una preferenza di lettura - il testo
+   * salvato non cambia - e vale per tutte le schermate in cui si scrive.
+   */
+  lyricsFormat: LyricsFormat;
 }
 
 /**
@@ -67,6 +78,7 @@ export const DEFAULT_SETTINGS: AppSettings = {
   geminiModel: DEFAULT_GEMINI_MODEL,
   transcriptionLanguage: 'it',
   keyProfile: 'temperley',
+  lyricsFormat: 'mixed',
 };
 
 export const SETTINGS_STORAGE_KEY = 'trapparchive_settings';

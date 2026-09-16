@@ -11,7 +11,9 @@ import {
   authorColor, canAddAuthor, canEditBlock, describeMerge, isOwner,
   makeBlock, mergeBlocks, mergeDrafts, nextBlockLabel,
 } from '../drafts/collab';
-import type { AppSettings } from '../settings/types';
+import type { AppSettings, LyricsFormat } from '../settings/types';
+import { countBars } from '../lyrics/bars';
+import { FormatPreferenceButton, LyricsEditor } from './LyricsEditor';
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null;
 
@@ -347,6 +349,8 @@ export function WorkingOn({
       setUrlInput={setUrlInput}
       notice={notice}
       setNotice={setNotice}
+      format={settings.lyricsFormat}
+      onFormatChange={lyricsFormat => onUpdateSettings({ lyricsFormat })}
       onBack={() => setActiveDraftId(null)}
       onUpdateDraft={patch => updateDraft(activeDraft.id, patch)}
       onUpdateBlock={(blockId, patch) => updateBlock(activeDraft, blockId, patch)}
@@ -405,7 +409,7 @@ function DeleteDialog({
 }
 
 function DraftEditor({
-  draft, me, myName, urlInput, setUrlInput, notice, setNotice,
+  draft, me, myName, urlInput, setUrlInput, notice, setNotice, format, onFormatChange,
   onBack, onUpdateDraft, onUpdateBlock, onExport, onSendToTrack, onDelete, deleteDialog,
 }: {
   draft: DraftProject;
@@ -415,6 +419,8 @@ function DraftEditor({
   setUrlInput: (v: string) => void;
   notice: Notice;
   setNotice: (n: Notice) => void;
+  format: LyricsFormat;
+  onFormatChange: (format: LyricsFormat) => void;
   onBack: () => void;
   onUpdateDraft: (patch: Partial<DraftProject>) => void;
   onUpdateBlock: (blockId: string, patch: Partial<DraftBlock>) => void;
@@ -514,6 +520,7 @@ function DraftEditor({
               <Merge size={15} /> Unisci
             </button>
           )}
+          <FormatPreferenceButton format={format} onChange={onFormatChange} />
           <button
             onClick={onDelete}
             aria-label="Elimina bozza"
@@ -538,7 +545,7 @@ function DraftEditor({
         </div>
       )}
 
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-3 gap-6 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 lg:flex-1 lg:min-h-0">
         {/* Blocchi */}
         <div className="lg:col-span-2 flex flex-col gap-3 min-h-0 lg:overflow-y-auto custom-scrollbar lg:pr-1">
           {draft.blocks.length === 0 && (
@@ -557,7 +564,7 @@ function DraftEditor({
             return (
               <div
                 key={b.id}
-                className={`border rounded-2xl overflow-hidden transition-colors ${
+                className={`border rounded-2xl overflow-hidden transition-colors shrink-0 ${
                   mine && c ? `${c.border} bg-white/[0.03]` : 'border-slate-900 bg-white/[0.01]'
                 }`}
               >
@@ -583,6 +590,12 @@ function DraftEditor({
                     ) : (
                       <span className="text-[10px] px-2 py-0.5 rounded-full border border-slate-700 text-slate-400 shrink-0">
                         libero
+                      </span>
+                    )}
+
+                    {b.text.trim() && (
+                      <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
+                        {countBars(b.text)} barre
                       </span>
                     )}
                   </div>
@@ -625,17 +638,15 @@ function DraftEditor({
                   Tutti vedono il testo di tutti: e' la scelta presa. Chi non ha
                   il blocco lo legge e basta, cosi' nessuno scrive sopra un altro.
                 */}
-                <textarea
+                <LyricsEditor
                   value={b.text}
+                  onChange={text => onUpdateBlock(b.id, { text })}
                   readOnly={!mine}
-                  onChange={e => onUpdateBlock(b.id, { text: e.target.value })}
+                  format={format}
+                  framed={false}
+                  showBarCount={false}
+                  minHeightClass="min-h-[9rem]"
                   placeholder={mine ? 'Scrivi qui la tua parte...' : 'Ancora niente.'}
-                  rows={6}
-                  className={`w-full bg-transparent p-3.5 focus:outline-none resize-y font-mono text-sm leading-relaxed custom-scrollbar ${
-                    mine
-                      ? 'text-slate-200 placeholder:text-slate-600'
-                      : 'text-slate-400 cursor-default placeholder:text-slate-700'
-                  }`}
                 />
               </div>
             );

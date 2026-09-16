@@ -11,6 +11,7 @@ import { AudioStoreError, deleteAudio, putAudio } from '../storage/audioStore';
 import { loadAudioBlob } from '../storage/audioAccess';
 import { PHASE_LABELS, type TranscribePhase } from '../services/gemini-types';
 import type { AppSettings } from '../settings/types';
+import { LyricsEditor } from './LyricsEditor';
 import { hasAiCredentials } from '../settings/store';
 
 /** Cosa fare quando la trascrizione arriva ma un testo esiste già. */
@@ -23,6 +24,7 @@ export function TrackEditor({
   onUpdate,
   onDelete,
   settings,
+  onUpdateSettings,
   onOpenSettings,
 }: {
   onSave: (t: Track) => void,
@@ -31,6 +33,7 @@ export function TrackEditor({
   onUpdate?: (t: Track) => void,
   onDelete?: (id: string) => void,
   settings: AppSettings,
+  onUpdateSettings: (patch: Partial<AppSettings>) => void,
   onOpenSettings: () => void,
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
@@ -795,11 +798,12 @@ export function TrackEditor({
               </div>
             )}
 
-            <textarea 
-              className="w-full flex-1 bg-black/40 border border-slate-900 rounded-xl p-4 focus:outline-none focus:border-blue-500 transition-colors resize-none placeholder:text-slate-600 font-mono text-sm leading-relaxed text-slate-200 shadow-inner custom-scrollbar min-h-[250px]"
-              placeholder="Incolla o scrivi qui il testo della canzone, strofe e ritornelli..."
+            <LyricsEditor
               value={track.lyrics}
-              onChange={e => setTrack({ ...track, lyrics: e.target.value })}
+              onChange={lyrics => setTrack(prev => ({ ...prev, lyrics }))}
+              format={settings.lyricsFormat}
+              onFormatChange={lyricsFormat => onUpdateSettings({ lyricsFormat })}
+              placeholder="Scrivi qui il testo: quello che metti fra parentesi è una ad lib, e si colora di giallo."
             />
           </div>
 
