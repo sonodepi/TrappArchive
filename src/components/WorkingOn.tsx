@@ -657,8 +657,8 @@ function DraftEditor({
   return (
     <div className="p-4 md:p-6 lg:p-8 h-full flex flex-col max-w-7xl mx-auto pb-36">
       {/* Intestazione */}
-      <div className="flex items-start justify-between gap-4 mb-5 flex-wrap">
-        <div className="flex items-start gap-3 min-w-0 flex-1">
+      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3 sm:gap-4 mb-5">
+        <div className="flex items-start gap-3 min-w-0 w-full sm:flex-1">
           <button
             onClick={onBack}
             aria-label="Torna alle bozze"
@@ -700,7 +700,7 @@ function DraftEditor({
           </div>
         </div>
 
-        <div className="flex items-center gap-2 flex-wrap">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
           {owner && (
             <button
               onClick={doMerge}
