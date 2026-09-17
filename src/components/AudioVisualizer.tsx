@@ -394,7 +394,7 @@ export function AudioVisualizer({
     const updateDPI = () => {
       const rect = canvas.getBoundingClientRect();
       const dpr = window.devicePixelRatio || 1;
-      canvas.width = Math.max(140, Math.floor(rect.width * dpr));
+      canvas.width = Math.max(60, Math.floor(rect.width * dpr));
       canvas.height = Math.max(34, Math.floor(rect.height * dpr));
       const ctx = canvas.getContext('2d');
       if (ctx) ctx.scale(dpr, dpr);
@@ -416,9 +416,9 @@ export function AudioVisualizer({
       {/* Compact Studio Player Visualizer Dock */}
       <div 
         id="player-audio-visualizer-dock"
-        className="flex items-center gap-2.5 bg-black/50 border border-slate-800/90 rounded-xl px-3 py-1.5 shadow-[inset_0_1px_8px_rgba(0,0,0,0.6)] backdrop-blur-sm group hover:border-slate-700 transition-colors"
+        className="hidden lg:flex items-center gap-2 xl:gap-2.5 bg-black/50 border border-slate-800/90 rounded-xl px-2 xl:px-3 py-1.5 shadow-[inset_0_1px_8px_rgba(0,0,0,0.6)] backdrop-blur-sm group hover:border-slate-700 transition-colors"
       >
-        <div className="flex flex-col select-none">
+        <div className="hidden 2xl:flex flex-col select-none">
           <div className="flex items-center gap-1.5">
             <span
               className={`w-1.5 h-1.5 rounded-full transition-all duration-300 ${
@@ -440,7 +440,7 @@ export function AudioVisualizer({
         <div 
           onClick={cycleMode}
           title={`Click to switch visualizer mode (Current: ${mode})`}
-          className="relative w-36 sm:w-44 h-9 bg-black/80 rounded-lg border border-slate-900 overflow-hidden cursor-pointer shadow-inner flex items-center justify-center hover:border-blue-500/40 transition-colors"
+          className="relative w-24 xl:w-32 2xl:w-44 h-9 bg-black/80 rounded-lg border border-slate-900 overflow-hidden cursor-pointer shadow-inner flex items-center justify-center hover:border-blue-500/40 transition-colors"
         >
           <canvas 
             ref={canvasRef} 
@@ -449,11 +449,11 @@ export function AudioVisualizer({
           />
           {!isPlaying ? (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/30">
-              <span className="text-[9px] font-mono text-slate-600 tracking-wider">CLICK TO SWITCH</span>
+              <span className="text-[9px] font-mono text-slate-600 tracking-wider px-1 text-center leading-tight">CLICK TO SWITCH</span>
             </div>
           ) : !hasSignal ? (
             <div className="absolute inset-0 flex items-center justify-center pointer-events-none bg-black/40">
-              <span className="text-[9px] font-mono text-amber-500/80 tracking-wider">NESSUN SEGNALE</span>
+              <span className="text-[9px] font-mono text-amber-500/80 tracking-wider px-1 text-center leading-tight">NESSUN SEGNALE</span>
             </div>
           ) : null}
         </div>

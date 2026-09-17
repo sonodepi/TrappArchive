@@ -207,10 +207,10 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
         {/* ========================================================= */}
         {/* TABLET / DESKTOP VIEW (≥ 768px): 3-Column Standard Layout */}
         {/* ========================================================= */}
-        <div className="hidden md:flex items-center justify-between w-full h-full gap-4">
+        <div className="hidden md:flex items-center justify-between w-full h-full gap-4 min-w-0">
           
           {/* Column 1: Info */}
-          <div className="w-1/3 flex items-center gap-3.5 min-w-0">
+          <div className="flex-1 basis-0 min-w-0 flex items-center gap-3.5">
             {currentTrack ? (
               <>
                 <div className="w-13 h-13 bg-black border border-slate-900 rounded-xl flex items-center justify-center overflow-hidden shadow-inner relative group shrink-0">
@@ -243,7 +243,7 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
           </div>
           
           {/* Column 2: Controls & Progress */}
-          <div className="flex flex-col items-center flex-1 max-w-xl px-4">
+          <div className="flex flex-col items-center flex-1 basis-0 min-w-0 max-w-xl px-2 lg:px-4">
             <div className="flex items-center gap-5 mb-1.5">
               <button 
                 onClick={handleSkipBack} 
@@ -289,7 +289,7 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
           </div>
           
           {/* Column 3: Visualizer Dock + Volume Slider */}
-          <div className="w-1/3 flex justify-end items-center gap-4 shrink-0">
+          <div className="flex-none flex justify-end items-center gap-3 min-w-0">
             {/* Real-time Canvas Audio Visualizer */}
             <AudioVisualizer
               isPlaying={isPlaying}
