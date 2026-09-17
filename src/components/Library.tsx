@@ -72,7 +72,7 @@ export function Library({
                   setSortBy(field);
                   setSortDir(dir);
                 }}
-                className="flex-1 bg-black/60 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 font-medium min-h-[44px] focus:outline-none focus:border-blue-500"
+                className="flex-1 min-w-0 bg-black/60 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-200 font-medium min-h-[44px] focus:outline-none focus:border-blue-500"
               >
                 <option value="date-desc">Recenti prima</option>
                 <option value="date-asc">Meno recenti prima</option>

@@ -518,7 +518,7 @@ export function TrackEditor({
               <input
                 type="url"
                 aria-label="Indirizzo audio remoto"
-                className="flex-1 bg-black/40 border border-slate-900 px-4 py-2.5 rounded-xl text-sm text-slate-300 focus:outline-none focus:border-blue-500 placeholder:text-slate-600 min-h-[44px]"
+                className="flex-1 min-w-0 bg-black/40 border border-slate-900 px-4 py-2.5 rounded-xl text-sm text-slate-300 focus:outline-none focus:border-blue-500 placeholder:text-slate-600 min-h-[44px]"
                 placeholder="oppure incolla un URL audio"
                 value={track.audio?.kind === 'remote' ? track.audio.url : ''}
                 onChange={e => {
@@ -586,7 +586,7 @@ export function TrackEditor({
                     <span className="text-xs font-medium text-slate-500 w-12 shrink-0">Feat {idx + 1}</span>
                     <input 
                       type="text" 
-                      className="flex-1 bg-black/40 border border-slate-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600 text-slate-200 min-h-[44px]"
+                      className="flex-1 min-w-0 bg-black/40 border border-slate-900 rounded-xl px-3 py-2 text-sm focus:outline-none focus:border-blue-500 transition-colors placeholder:text-slate-600 text-slate-200 min-h-[44px]"
                       placeholder="Nome artista"
                       value={feat}
                       onChange={e => handleFeatChange(idx, e.target.value)}

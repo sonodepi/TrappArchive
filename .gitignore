@@ -13,3 +13,6 @@ coverage/
 *credentials*.json
 *.pem
 *.key
+
+# Verifiche e schermate di lavoro: roba di passaggio, non del progetto
+.tmp/

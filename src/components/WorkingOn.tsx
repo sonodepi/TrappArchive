@@ -492,17 +492,29 @@ function ImportCodePanel({
           value={passphrase}
           onChange={e => setPassphrase(e.target.value)}
           placeholder="Password"
-          className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 min-h-[36px]"
+          className="flex-1 min-w-0 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 min-h-[36px]"
         />
         <button
           onClick={submit}
           disabled={busy || !code.trim() || !passphrase}
+          title={
+            !code.trim() && !passphrase ? 'Servono il codice e la password'
+              : !code.trim() ? 'Manca il codice'
+              : !passphrase ? 'Manca la password'
+              : 'Unisci questo codice nella bozza'
+          }
           className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 disabled:opacity-40 text-white rounded-lg text-xs font-semibold flex items-center gap-1.5 min-h-[36px] shrink-0"
         >
           {busy ? <Loader2 size={13} className="animate-spin" /> : <ClipboardPaste size={13} />}
           Sblocca
         </button>
       </div>
+
+      {(code.trim() || passphrase) && !(code.trim() && passphrase) && (
+        <p className="text-[10px] text-amber-400/90">
+          Servono tutti e due: il codice e la password, che chi te lo manda ti manda a parte.
+        </p>
+      )}
     </div>
   );
 }
@@ -532,7 +544,7 @@ function CopyField({ label, value, multiline }: { label: string; value: string; 
             value={value}
             rows={3}
             onFocus={e => e.target.select()}
-            className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-300 resize-none custom-scrollbar"
+            className="flex-1 min-w-0 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-[11px] font-mono text-slate-300 resize-none custom-scrollbar"
           />
         ) : (
           <input
@@ -540,7 +552,7 @@ function CopyField({ label, value, multiline }: { label: string; value: string; 
             aria-label={label}
             value={value}
             onFocus={e => e.target.select()}
-            className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs font-mono text-slate-300"
+            className="flex-1 min-w-0 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs font-mono text-slate-300"
           />
         )}
         <button
@@ -910,11 +922,11 @@ function DraftEditor({
                 onKeyDown={e => e.key === 'Enter' && onUpdateDraft({ beatUrl: urlInput })}
                 aria-label="Link della base"
                 placeholder="Link YouTube della base"
-                className="flex-1 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 min-h-[40px]"
+                className="flex-1 min-w-0 bg-black/40 border border-slate-900 rounded-lg px-3 py-2 text-xs text-slate-300 focus:outline-none focus:border-blue-500 min-h-[40px]"
               />
               <button
                 onClick={() => onUpdateDraft({ beatUrl: urlInput })}
-                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-lg text-xs font-semibold min-h-[40px]"
+                className="px-3 py-2 bg-white/5 hover:bg-white/10 text-slate-200 border border-white/10 rounded-lg text-xs font-semibold min-h-[40px] shrink-0"
               >
                 Carica
               </button>
@@ -930,6 +942,14 @@ function DraftEditor({
                   className="w-full h-full"
                 />
               </div>
+            ) : draft.beatUrl.trim() ? (
+              // Il link viene salvato lo stesso - e' roba dell'utente - ma
+              // riprodurlo non possiamo, e stare zitti farebbe sembrare il
+              // pulsante rotto: si clicca «Carica» e non succede niente.
+              <p className="text-[11px] text-amber-400/90">
+                Questo link è salvato ma non si riesce a riprodurlo: qui funzionano solo
+                gli indirizzi YouTube (youtube.com/watch?v=… oppure youtu.be/…).
+              </p>
             ) : (
               <p className="text-[11px] text-slate-500">
                 Nessuna base caricata. Il video parte da YouTube: serve la connessione.
