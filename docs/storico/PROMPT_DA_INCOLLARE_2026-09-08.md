@@ -1,3 +1,13 @@
+> ⚠️ **DOCUMENTO STORICO — non descrive lo stato attuale dell'applicazione.**
+>
+> È conservato perché racconta come si è arrivati fin qui, non come stanno le
+> cose adesso. In particolare: **la trascrizione AI con Gemini è stata rimossa**
+> (moduli, dipendenza `@google/genai`, campi nelle impostazioni), quindi tutto
+> quello che leggi qui a riguardo non vale più e **non va ripristinato**.
+>
+> Lo stato vero è in `CLAUDE.md` (regole), `docs/STATO_E_PROSSIMO_PASSO.md`
+> (dove siamo e cosa manca) e `docs/AUDIT.md` (ultimo controllo).
+
 # RUOLO
 
 Sei l'ingegnere responsabile della messa in produzione di **TrappArchive**, una
