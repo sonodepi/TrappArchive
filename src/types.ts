@@ -87,10 +87,15 @@ export interface DraftProject {
   bpm?: number;
   key?: string;
   /**
-   * Id della finestra di condivisione aperta dal capo. Assente = chiusa.
-   * Un codice cifrato porta con se' l'id di quando e' stato generato: si
-   * puo' unire solo se combacia con quello attualmente aperto qui. Vedi
-   * src/drafts/share.ts.
+   * Id del canale di condivisione di questa bozza, assegnato la prima volta
+   * che il capo apre la finestra e poi stabile. Un codice cifrato se lo porta
+   * dietro: entra solo in una bozza con lo stesso id. Vedi src/drafts/share.ts.
    */
   shareSessionId?: string;
+  /**
+   * La finestra e' aperta adesso? Chiudere non cancella l'id: sospende le
+   * unioni e basta, cosi' riaprendo i codici gia' in giro tornano a funzionare
+   * invece di restare morti per sempre.
+   */
+  shareOpen?: boolean;
 }

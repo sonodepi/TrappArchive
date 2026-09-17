@@ -2,6 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { Play, Pause, SkipBack, SkipForward, Volume2, VolumeX, ChevronDown, Disc, AlertTriangle } from 'lucide-react';
 import { Track } from '../types';
 import { AudioVisualizer } from './AudioVisualizer';
+import { useMediaQuery } from '../hooks/useMediaQuery';
 import { useAudioUrl } from '../storage/audioAccess';
 
 function formatTime(seconds: number) {
@@ -12,6 +13,14 @@ function formatTime(seconds: number) {
 }
 
 export function Player({ currentTrack }: { currentTrack: Track | null }) {
+  /**
+   * Sotto i 1024px il visualizzatore non ci sta senza mangiarsi i comandi.
+   * Non basta nasconderlo con una classe: resterebbe montato, e il suo ciclo
+   * di disegno continuerebbe a girare a 60 fotogrammi al secondo dentro un
+   * canvas invisibile - batteria buttata proprio sul telefono. Qui non viene
+   * proprio creato. Nell'overlay a tutto schermo invece si vede, e resta.
+   */
+  const hasRoomForVisualizer = useMediaQuery('(min-width: 1024px)');
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
@@ -291,14 +300,16 @@ export function Player({ currentTrack }: { currentTrack: Track | null }) {
           {/* Column 3: Visualizer Dock + Volume Slider */}
           <div className="flex-none flex justify-end items-center gap-3 min-w-0">
             {/* Real-time Canvas Audio Visualizer */}
-            <AudioVisualizer
-              isPlaying={isPlaying}
-              volume={volume}
-              currentTime={currentTime}
-              audioRef={audioRef}
-              trackTitle={currentTrack?.title}
-              artist={currentTrack?.mainArtist}
-            />
+            {hasRoomForVisualizer && (
+              <AudioVisualizer
+                isPlaying={isPlaying}
+                volume={volume}
+                currentTime={currentTime}
+                audioRef={audioRef}
+                trackTitle={currentTrack?.title}
+                artist={currentTrack?.mainArtist}
+              />
+            )}
 
             <div className="flex items-center gap-2 border-l border-slate-800/80 pl-3">
               <button 

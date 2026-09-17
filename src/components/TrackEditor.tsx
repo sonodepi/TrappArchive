@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Track, DraftProject } from '../types';
 import {
-  Save, Folder, AlertCircle, Plus, Minus, Trash2,
+  Save, Folder, Plus, Minus, Trash2,
   ExternalLink, Music2, RefreshCw, CheckCircle2,
   Loader2, Gauge, StopCircle, AlertTriangle,
 } from 'lucide-react';

@@ -10,19 +10,29 @@
  * canali diversi (es. messaggio + chiamata), altrimenti chi intercetta uno
  * intercetta anche l'altro.
  *
- * La "finestra" e' il permesso di unire un codice nella propria bozza:
- * quando il capo apre, `draft.shareSessionId` prende un id nuovo; un codice
- * generato mentre la finestra era aperta porta con se' quello stesso id, e
- * puo' essere unito solo se combacia con quello ATTUALMENTE aperto su questo
- * dispositivo (non con quello che c'era al momento in cui il codice e' stato
- * creato). Chiudere svuota l'id: da quel momento nessun codice, nemmeno uno
- * valido, entra piu' in questa bozza.
+ * La "finestra" e' il permesso di unire un codice nella propria bozza, e sono
+ * due cose distinte:
+ *
+ *   - `shareSessionId` e' l'id del canale della bozza. Nasce la prima volta
+ *     che il capo apre la finestra e poi non cambia piu'. Un codice entra solo
+ *     in una bozza con lo stesso id: e' cio' che impedisce di unire per
+ *     sbaglio un pezzo che appartiene a un'altra bozza.
+ *   - `shareOpen` dice se adesso si accettano unioni. Chiudere lo mette a
+ *     false e **non** tocca l'id.
+ *
+ * Perche' chiudere non cancella l'id: se lo cancellasse, riaprendo si
+ * genererebbe un id nuovo e tutti i codici gia' in giro — compresi quelli che
+ * i collaboratori devono ancora rimandare indietro — resterebbero morti per
+ * sempre, in tutte e due le direzioni. E un collaboratore non ha nemmeno il
+ * pulsante per riaprire: la finestra la governa solo chi ha creato la bozza.
+ * Chiudere e riaprire vuol dire "adesso non accetto" e poi "accetto di nuovo",
+ * non "butto via il canale".
  *
  * Attenzione a cosa "chiudere" NON fa: non e' una revoca crittografica. Chi
  * ha gia' in mano un codice e la password puo' sempre decifrarlo e leggerlo
  * — non esiste modo di impedirlo senza un server che tenga il conto di chi
  * ha ancora accesso, e qui non c'e' nessun server. Chiudere impedisce solo
- * che quel codice venga UNITO per sbaglio in questa bozza piu' avanti.
+ * che quel codice venga UNITO in questa bozza finche' resta chiusa.
  */
 
 import type { DraftProject } from '../types';
@@ -50,24 +60,35 @@ export function generatePassphrase(groups = 3, groupSize = 4): string {
   return words.join('-');
 }
 
-/** Apre una finestra nuova: un id fresco, diverso da ogni finestra precedente. */
+/**
+ * Apre la finestra. L'id del canale si crea solo la prima volta: riaprendo
+ * resta quello di prima, cosi' i codici gia' distribuiti tornano validi.
+ */
 export function openShareWindow(draft: DraftProject): DraftProject {
-  return { ...draft, shareSessionId: crypto.randomUUID() };
+  return {
+    ...draft,
+    shareSessionId: draft.shareSessionId ?? crypto.randomUUID(),
+    shareOpen: true,
+  };
 }
 
-/** Chiude la finestra: i codici di questa sessione non entreranno piu'. */
+/** Chiude la finestra: finche' resta chiusa non entra nessun codice. L'id resta. */
 export function closeShareWindow(draft: DraftProject): DraftProject {
-  return { ...draft, shareSessionId: undefined };
+  return { ...draft, shareOpen: false };
 }
 
 /**
- * Un codice ricevuto si puo' unire solo se la mia finestra e' aperta e porta
- * lo stesso id di quando il codice e' stato generato. Confronta sempre lo
- * stato ATTUALE di `mine`, non uno stato passato: e' quello che rende
- * efficace la chiusura anche per un codice generato prima di chiudere.
+ * Un codice ricevuto si puo' unire solo se la mia finestra e' aperta adesso e
+ * il codice appartiene allo stesso canale. Guarda sempre lo stato ATTUALE di
+ * `mine`, non quello di quando il codice e' stato generato: e' cio' che rende
+ * efficace la chiusura anche su un codice gia' in giro.
  */
 export function canMergeIntoOpenWindow(mine: DraftProject, incoming: DraftProject): boolean {
-  return !!mine.shareSessionId && mine.shareSessionId === incoming.shareSessionId;
+  return (
+    mine.shareOpen === true &&
+    !!mine.shareSessionId &&
+    mine.shareSessionId === incoming.shareSessionId
+  );
 }
 
 function toBase64Url(bytes: Uint8Array): string {

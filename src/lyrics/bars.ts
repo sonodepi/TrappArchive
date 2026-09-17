@@ -136,11 +136,18 @@ export function readBar(line: string): BarText {
   const groups = segments.filter(s => s.kind === 'adlib');
   if (groups.length === 0) return { writer: line, adlibs: '' };
 
-  const writer = segments
-    .filter(s => s.kind === 'writer')
-    .map(s => s.text)
-    .join('')
-    .replace(/ {2,}/g, ' ');
+  // Si chiude solo il punto in cui stava la ad lib - lo spazio prima e quello
+  // dopo diventano uno. Gli spazi scritti apposta altrove nella riga non si
+  // toccano: qualcuno incolonna le ad libs a mano, e non e' roba nostra.
+  let writer = '';
+  segments.forEach((segment, i) => {
+    if (segment.kind === 'adlib') return;
+    const dopoUnaAdLib = segments[i - 1]?.kind === 'adlib';
+    const text = dopoUnaAdLib && writer.endsWith(' ') && segment.text.startsWith(' ')
+      ? segment.text.slice(1)
+      : segment.text;
+    writer += text;
+  });
   const adlibs = groups.map(g => inner(g.text)).join(' ');
   return { writer, adlibs };
 }

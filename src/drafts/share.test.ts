@@ -29,17 +29,26 @@ describe('generatePassphrase', () => {
 });
 
 describe('openShareWindow / closeShareWindow', () => {
-  it('aprire assegna un id, chiudere lo svuota', () => {
+  it('aprire assegna un id e apre, chiudere lascia l’id e chiude', () => {
     const opened = openShareWindow(draft());
     expect(opened.shareSessionId).toBeTruthy();
+    expect(opened.shareOpen).toBe(true);
+
     const closed = closeShareWindow(opened);
-    expect(closed.shareSessionId).toBeUndefined();
+    expect(closed.shareOpen).toBe(false);
+    expect(closed.shareSessionId).toBe(opened.shareSessionId);
   });
 
-  it("ogni apertura da' un id diverso dalla precedente", () => {
-    const first = openShareWindow(draft());
-    const second = openShareWindow(first);
-    expect(second.shareSessionId).not.toBe(first.shareSessionId);
+  it('riaprire non cambia il canale: i codici gia’ in giro restano validi', () => {
+    // Se riaprire generasse un id nuovo, dopo un chiudi/riapri nessuno
+    // riuscirebbe piu' a unire niente - ne' il capo ne' i collaboratori, che
+    // fra l'altro non hanno nemmeno il pulsante per riaprire.
+    const aperta = openShareWindow(draft());
+    const codiceInGiro = draft({ shareSessionId: aperta.shareSessionId });
+
+    const riaperta = openShareWindow(closeShareWindow(aperta));
+    expect(riaperta.shareSessionId).toBe(aperta.shareSessionId);
+    expect(canMergeIntoOpenWindow(riaperta, codiceInGiro)).toBe(true);
   });
 });
 
@@ -97,9 +106,9 @@ describe('canMergeIntoOpenWindow', () => {
     expect(canMergeIntoOpenWindow(closed, incoming)).toBe(false);
   });
 
-  it('rifiuta un codice di una finestra diversa da quella attualmente aperta', () => {
+  it('rifiuta un codice che appartiene a un altro canale', () => {
     const mine = openShareWindow(draft());
-    const incoming = draft({ shareSessionId: 'una-sessione-diversa' });
+    const incoming = draft({ shareSessionId: 'un-altro-canale' });
     expect(canMergeIntoOpenWindow(mine, incoming)).toBe(false);
   });
 
@@ -107,5 +116,13 @@ describe('canMergeIntoOpenWindow', () => {
     const mine = draft();
     const incoming = draft({ shareSessionId: undefined });
     expect(canMergeIntoOpenWindow(mine, incoming)).toBe(false);
+  });
+
+  it('una bozza salvata prima di questa versione risulta chiusa, non aperta', () => {
+    // Retrocompatibilita': c'e' l'id ma non il flag. Meglio chiedere al capo
+    // di riaprire che accettare unioni che non ha autorizzato.
+    const vecchia = draft({ shareSessionId: 'canale-vecchio' });
+    const incoming = draft({ shareSessionId: 'canale-vecchio' });
+    expect(canMergeIntoOpenWindow(vecchia, incoming)).toBe(false);
   });
 });

@@ -105,6 +105,13 @@ describe('le due colonne sono una proiezione, non un secondo formato', () => {
     expect(writeBar(readBar('Sto in studio (ehi ouu)'))).toBe('Sto in studio (ehi ouu)');
   });
 
+  it('non tocca gli spazi che chi scrive ha messo apposta', () => {
+    // C'e' chi incolonna le ad libs a mano con una fila di spazi: toglierli
+    // gli sposterebbe il testo sotto le dita, e nel testo salvato per sempre.
+    expect(readBar('Sto in studio       (ehi)').writer).toBe('Sto in studio       ');
+    expect(readBar('due  spazi (ehi) in mezzo').writer).toBe('due  spazi in mezzo');
+  });
+
   it('rimette le ad libs in fondo alla barra, con lo spazio davanti', () => {
     expect(writeBar({ writer: 'Sto in studio', adlibs: 'ehi' })).toBe('Sto in studio (ehi)');
   });

@@ -416,7 +416,7 @@ export function AudioVisualizer({
       {/* Compact Studio Player Visualizer Dock */}
       <div 
         id="player-audio-visualizer-dock"
-        className="hidden lg:flex items-center gap-2 xl:gap-2.5 bg-black/50 border border-slate-800/90 rounded-xl px-2 xl:px-3 py-1.5 shadow-[inset_0_1px_8px_rgba(0,0,0,0.6)] backdrop-blur-sm group hover:border-slate-700 transition-colors"
+        className="flex items-center gap-2 xl:gap-2.5 bg-black/50 border border-slate-800/90 rounded-xl px-2 xl:px-3 py-1.5 shadow-[inset_0_1px_8px_rgba(0,0,0,0.6)] backdrop-blur-sm group hover:border-slate-700 transition-colors"
       >
         <div className="hidden 2xl:flex flex-col select-none">
           <div className="flex items-center gap-1.5">

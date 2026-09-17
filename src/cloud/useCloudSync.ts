@@ -11,7 +11,7 @@
  * sbaglia. Qui si vede sempre quando è successo e cosa ha spostato.
  */
 
-import { useCallback, useState } from 'react';
+import { useCallback, useRef, useState } from 'react';
 import type { Album, DraftProject, Track } from '../types';
 import type { AppSettings } from '../settings/types';
 import {
@@ -83,6 +83,16 @@ export function useCloudSync(
 ) {
   const [user, setUser] = useState<CloudUser | null>(null);
   const [status, setStatus] = useState<SyncStatus>({ state: 'idle' });
+
+  /**
+   * Il catalogo com'e' adesso, non com'era quando la sincronizzazione e'
+   * partita. Fra la lettura dal cloud e la scrittura passano secondi, e in
+   * quei secondi l'utente scrive, crea e cancella: applicare il risultato
+   * sull'istantanea di partenza rimetteva dentro una traccia appena
+   * cancellata e buttava via quello che era nato nel frattempo.
+   */
+  const catalogRef = useRef(catalog);
+  catalogRef.current = catalog;
 
   const config = settings.firebase as FirebaseConfig | undefined;
   const configured = isConfigured(config);
@@ -176,10 +186,11 @@ export function useCloudSync(
         writeCollection(config, user.uid, 'drafts', rDrafts.toPush),
       ]);
 
+      const adesso = catalogRef.current;
       onApply({
-        tracks: applyToLocal(catalog.tracks, rTracks),
-        albums: applyToLocal(catalog.albums, rAlbums),
-        drafts: applyToLocal(catalog.drafts, rDrafts),
+        tracks: applyToLocal(adesso.tracks, rTracks),
+        albums: applyToLocal(adesso.albums, rAlbums),
+        drafts: applyToLocal(adesso.drafts, rDrafts),
       });
 
       // Raccontate al cloud: da qui in poi se ne ricorda lui, e un'altra

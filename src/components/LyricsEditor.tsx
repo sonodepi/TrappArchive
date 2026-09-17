@@ -310,7 +310,7 @@ export function LyricsEditor({
             value={shown(bar.index, 'writer', bar.writer)}
             ink={ink.writer}
             readOnly={readOnly}
-            placeholder={empty ? (readOnly ? placeholder : 'barra...') : undefined}
+            placeholder={empty ? (placeholder ?? 'barra...') : undefined}
             register={el => {
               registerCell(cells.current, bar.index, 'writer', el);
             }}

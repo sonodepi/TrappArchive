@@ -30,7 +30,7 @@ export function WorkingOn({
   onUpdateSettings,
 }: {
   drafts: DraftProject[];
-  setDrafts: (d: DraftProject[]) => void;
+  setDrafts: React.Dispatch<React.SetStateAction<DraftProject[]>>;
   onSendToTrack?: (draft: DraftProject) => void;
   settings: AppSettings;
   onUpdateSettings: (patch: Partial<AppSettings>) => void;
@@ -48,7 +48,7 @@ export function WorkingOn({
   const activeDraft = drafts.find(d => d.id === activeDraftId) ?? null;
 
   const updateDraft = (id: string, patch: Partial<DraftProject>) => {
-    setDrafts(drafts.map(d => (d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d)));
+    setDrafts(prev => prev.map(d => (d.id === id ? { ...d, ...patch, updatedAt: Date.now() } : d)));
   };
 
   const updateBlock = (draft: DraftProject, blockId: string, patch: Partial<DraftBlock>) => {
@@ -102,6 +102,12 @@ export function WorkingOn({
     }
     const incoming = result.draft;
 
+    /**
+     * Da qui in avanti si scrive con aggiornamenti funzionali, mai sull'elenco
+     * catturato prima dell'attesa. Decifrare costa 210.000 giri di PBKDF2:
+     * centinaia di millisecondi in cui l'utente continua a scrivere nei
+     * blocchi, e ogni tasto battuto in quella finestra andrebbe perso.
+     */
     const mine = drafts.find(d => d.id === incoming.id);
     if (!mine) {
       // Bozza di qualcun altro: entro come collaboratore, e mi aggiungo agli
@@ -115,7 +121,7 @@ export function WorkingOn({
             }],
           }
         : incoming;
-      setDrafts([...drafts, joined]);
+      setDrafts(prev => (prev.some(d => d.id === joined.id) ? prev : [...prev, joined]));
       setActiveDraftId(joined.id);
       setUrlInput(joined.beatUrl);
       setNotice({
@@ -135,8 +141,14 @@ export function WorkingOn({
       return false;
     }
 
-    const report = mergeDrafts(mine, incoming);
-    setDrafts(drafts.map(d => (d.id === report.draft.id ? report.draft : d)));
+    // L'unione si rifa' sulla versione piu' fresca: `mine` puo' essere
+    // invecchiata mentre la decifratura era in corso.
+    let report = mergeDrafts(mine, incoming);
+    setDrafts(prev => prev.map(d => {
+      if (d.id !== incoming.id) return d;
+      report = mergeDrafts(d, incoming);
+      return report.draft;
+    }));
     setActiveDraftId(report.draft.id);
     setNotice({
       kind: report.conflicts.length > 0 ? 'error' : 'ok',
@@ -150,7 +162,7 @@ export function WorkingOn({
     // La cancellazione va raccontata al cloud, altrimenti la bozza torna
     // indietro alla prima sincronizzazione da un altro dispositivo.
     if (isConfigured(settings.firebase)) recordTombstone('drafts', draftToDelete.id);
-    setDrafts(drafts.filter(d => d.id !== draftToDelete.id));
+    setDrafts(prev => prev.filter(d => d.id !== draftToDelete.id));
     if (activeDraftId === draftToDelete.id) setActiveDraftId(null);
     setDraftToDelete(null);
   };
@@ -344,6 +356,10 @@ export function WorkingOn({
   // ==========================================================================
   return (
     <DraftEditor
+      // Senza chiave, passando da una bozza all'altra React riusa la stessa
+      // istanza: codice e password generati per la bozza di prima restavano a
+      // video, etichettati come se fossero di questa.
+      key={activeDraft.id}
       draft={activeDraft}
       me={me}
       myName={myName}
@@ -429,12 +445,17 @@ function ImportCodePanel({
 
   const submit = async () => {
     setBusy(true);
-    const ok = await onSubmit(code, passphrase);
-    setBusy(false);
-    if (ok) {
-      setCode('');
-      setPassphrase('');
-      onClose?.();
+    try {
+      const ok = await onSubmit(code, passphrase);
+      if (ok) {
+        setCode('');
+        setPassphrase('');
+        onClose?.();
+      }
+    } finally {
+      // Qualunque cosa vada storta, il pulsante torna premibile: altrimenti
+      // resta disabilitato fino a un ricaricamento della pagina.
+      setBusy(false);
     }
   };
 
@@ -565,7 +586,7 @@ function DraftEditor({
   const [sharePassphrase, setSharePassphrase] = useState<string | null>(null);
   const [shareBusy, setShareBusy] = useState(false);
 
-  const shareOpen = !!draft.shareSessionId;
+  const shareOpen = draft.shareOpen === true;
 
   const handleOpenShare = () => {
     onUpdateDraft(openShareWindow(draft));
@@ -581,11 +602,23 @@ function DraftEditor({
 
   const handleGenerateCode = async () => {
     setShareBusy(true);
-    const passphrase = generatePassphrase();
-    const code = await encryptDraft(draft, passphrase);
-    setSharePassphrase(passphrase);
-    setShareCode(code);
-    setShareBusy(false);
+    try {
+      const passphrase = generatePassphrase();
+      const code = await encryptDraft(draft, passphrase);
+      setSharePassphrase(passphrase);
+      setShareCode(code);
+    } catch (err) {
+      // Senza `finally` un errore della cifratura lasciava il pulsante girare
+      // per sempre, senza dire niente a nessuno.
+      setNotice({
+        kind: 'error',
+        text: err instanceof Error && err.message
+          ? `Codice non generato: ${err.message}`
+          : 'Codice non generato: la cifratura non è riuscita su questo dispositivo.',
+      });
+    } finally {
+      setShareBusy(false);
+    }
   };
 
   const addBlock = () => {
@@ -740,7 +773,7 @@ function DraftEditor({
 
                     {b.text.trim() && (
                       <span className="text-[10px] text-slate-500 shrink-0 tabular-nums">
-                        {countBars(b.text)} barre
+                        {countBars(b.text)} {countBars(b.text) === 1 ? 'barra' : 'barre'}
                       </span>
                     )}
                   </div>

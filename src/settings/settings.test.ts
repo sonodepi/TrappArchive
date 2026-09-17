@@ -43,6 +43,24 @@ describe('identita’ locale per la collaborazione', () => {
     expect(settings.keyProfile).toBe('krumhansl');
   });
 
+  it('cancella dall’archivio la chiave Gemini di una versione precedente', () => {
+    // La funzione che la usava non c'e' piu', e con lei la schermata da cui si
+    // poteva togliere: se non la cancelliamo noi, quella credenziale resta nel
+    // browser per sempre.
+    localStorage.setItem(SETTINGS_STORAGE_KEY, JSON.stringify({
+      authorId: 'io', authorName: 'Depi', geminiApiKey: 'AIzaSy-segreto',
+      geminiModel: 'gemini-2.5-flash', transcriptionLanguage: 'it',
+    }));
+
+    const settings = loadSettings();
+    expect((settings as unknown as Record<string, unknown>).geminiApiKey).toBeUndefined();
+    expect(settings.authorName).toBe('Depi');
+
+    const salvato = localStorage.getItem(SETTINGS_STORAGE_KEY)!;
+    expect(salvato).not.toContain('AIzaSy-segreto');
+    expect(salvato).not.toContain('geminiModel');
+  });
+
   it('due archivi distinti producono identita’ diverse', () => {
     const a = loadSettings().authorId;
     (globalThis as unknown as { localStorage: MemoryStorage }).localStorage = new MemoryStorage();
