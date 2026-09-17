@@ -117,7 +117,24 @@ Cose da sapere prima di toccarle:
 - **I file audio non salgono sul cloud**: un documento Firestore arriva a 1 MiB.
   Sale solo la scheda della traccia.
 
-## 6. Documenti
+## 6. Le skill del progetto
+
+In `.claude/skills/` ci sono tre skill che arrivano con il repository: non c'e'
+niente da installare, ogni sessione aperta qui le vede.
+
+| Skill | A cosa serve |
+|---|---|
+| `verifica-dal-vivo` | Controllare l'app come la usa una persona: entrare nelle sotto-schermate e misurare le posizioni reali a nove larghezze. Contiene lo script che lo fa da solo |
+| `condivisione-bozze` | Il giro completo fra due dispositivi, con i selettori giusti |
+| `scrittura` | Come si scrive qui: commit, documenti, commenti, testi dell'interfaccia |
+
+**Dopo ogni modifica all'interfaccia** si fa girare
+`node .claude/skills/verifica-dal-vivo/controlla-schermate.mjs` (serve
+Playwright, vedi la skill). I tre difetti che l'utente ha trovato prima di noi
+stavano tutti dietro un clic e a larghezze intermedie: quella e' la passata che
+li prende.
+
+## 7. Documenti
 
 | File | Cosa contiene |
 |---|---|

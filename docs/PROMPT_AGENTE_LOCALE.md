@@ -58,6 +58,34 @@ git pull --ff-only origin main
 npm install               # oppure bun install, se hai bun
 ```
 
+## Le skill: cosa c'è già e cosa vale la pena aggiungere
+
+**Nel repository** ci sono già tre skill, in `.claude/skills/`: arrivano con il
+`git pull`, non si installa niente, e Claude Code le vede da solo —
+`verifica-dal-vivo`, `condivisione-bozze`, `scrittura`. Sono scritte su questo
+progetto: dentro ci sono i comandi veri e i difetti già presi.
+
+**Dal catalogo**, due che c'entrano davvero:
+
+```
+/plugin marketplace add anthropics/knowledge-work-plugins
+/plugin          # poi scegli dall'elenco: gli identificativi esatti li mostra questa schermata
+```
+
+- **`modern-web-guidance`** (Google Chrome) — pratiche web aggiornate: CSS,
+  layout, prestazioni, PWA. Non porta server remoti né hook: è il più innocuo.
+- **`design`** (Anthropic) — critica di design, audit di accessibilità WCAG,
+  testi dell'interfaccia. Si porta dietro dei server MCP (Figma, Slack, Notion,
+  Gmail…) che puoi lasciare scollegati.
+
+**`security-guidance` — dopo, non adesso.** È utile, ma installa hook che girano
+a ogni modifica e a ogni commit: finché l'app non sta in piedi sono controlli
+che rallentano mentre si spostano ancora i mobili. Prima si fa funzionare, poi
+la si blinda.
+
+Quello che cercavi come "humanize" o "impeccable" nel catalogo **non esiste**:
+la regola contro il testo gonfio è la skill `scrittura` del progetto.
+
 ---
 
 ## 1. Audit completo del progetto
@@ -96,28 +124,43 @@ Da incollare in una sessione aperta nella cartella del repo.
 
 ---
 
-## 2. Passata di miglioramento generale
+## 2. Passata sull'interfaccia, con le skill
 
-Quando vuoi che qualcuno "sistemi un po' tutto" senza rompere niente.
+Questo è il prompt da incollare quando vuoi che qualcuno «sistemi un po' tutto»
+senza rompere niente. Non è generico: dice da dove partire e come si verifica.
 
-> Leggi `CLAUDE.md`, `docs/AUDIT.md` e `docs/STATO_E_PROSSIMO_PASSO.md`, poi
-> lavora sui punti ancora aperti dell'audit, dal più grave al meno grave.
+> Leggi `CLAUDE.md` e le tre skill in `.claude/skills/`: sono di questo
+> progetto e vanno usate, non ignorate. Poi leggi `docs/AUDIT.md` e
+> `docs/STATO_E_PROSSIMO_PASSO.md` per sapere cosa è già stato guardato.
+>
+> **Si parte misurando.** Fai girare
+> `node .claude/skills/verifica-dal-vivo/controlla-schermate.mjs` (se manca
+> Playwright: `npm i -D playwright && npx playwright install chromium`) e dimmi
+> cosa trova prima di toccare qualunque cosa. Su questa macchina **bun non c'è**:
+> usa `npm install`, `npm run lint`, `npm test`, `npm run build`, `npm run dev`.
+>
+> Poi lavora, dal più grave al meno grave:
+> 1. quello che lo script ha trovato;
+> 2. i punti ancora aperti in `docs/AUDIT.md`;
+> 3. l'interfaccia guardata con occhi tuoi a **1050 px** — è la larghezza a cui
+>    lavoro io, mezzo schermo, ed è lì che sono usciti tutti i difetti finora.
+>    Se hai installato il plugin `design`, usa `/design:critique` sulle schermate
+>    e `/design:accessibility` per il contrasto e i bersagli troppo piccoli.
 >
 > Regole: un commit per problema, ognuno revertibile da solo; prima un test che
-> riproduce il difetto dove è possibile, poi la correzione; niente riscritture
-> di cose che funzionano; l'interfaccia resta in italiano e i commenti spiegano
-> il perché.
+> riproduce il difetto dove è possibile, poi la correzione; niente riscritture di
+> cose che funzionano; interfaccia e commenti in italiano, e i commenti spiegano
+> il perché (vedi la skill `scrittura`).
 >
-> Prima di ogni commit: `npm run lint`, `npm test`, `npm run build` devono
-> essere puliti, e la cosa che hai toccato la provi dal vivo con `npm run dev`
-> — i test verdi qui sono già passati mentre qualcosa era rotto. (Su questa
-> macchina **bun non c'è**: usa gli script npm.)
+> Prima di ogni commit: `npm run lint`, `npm test`, `npm run build` puliti, e la
+> cosa che hai toccato **riprovata dal vivo** — qui i test verdi sono già passati
+> mentre qualcosa era rotto. Alla fine rifai girare lo script: deve dire
+> «nessun problema».
 >
 > Se trovi qualcosa di grosso che non rientra in questa passata, scrivilo in
-> `docs/AUDIT.md` invece di improvvisare una mezza correzione.
->
-> Alla fine: riga nel registro delle sessioni, e dimmi cosa hai cambiato e cosa
-> hai lasciato lì.
+> `docs/AUDIT.md` invece di improvvisare una mezza correzione. Alla fine: riga
+> nel registro delle sessioni, e dimmi cosa hai cambiato, cosa hai verificato e
+> cosa hai lasciato lì.
 
 ---
 

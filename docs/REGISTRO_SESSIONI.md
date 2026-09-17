@@ -45,6 +45,29 @@ script di `package.json` (`npm run lint`, `npm test`, `npm run build`,
 clone invece di darne per scontato il percorso. Provato qui con npm, non solo
 con bun.
 
+**Seconda coda (17 settembre, sera): i difetti che ha trovato l'utente**
+
+Con due screenshot l'utente ha segnalato pulsanti tagliati dentro una bozza. Da
+lì, misurando: i campi dentro le righe flex non potevano stringersi (mancava
+`min-w-0`), e spingevano fuori il pulsante accanto — sette punti fra
+`WorkingOn.tsx`, `TrackEditor.tsx` e `Library.tsx`. Sistemato anche il caso in
+cui l'intestazione della bozza si accavallava a 390 px, e le due azioni che non
+dicevano niente quando non potevano riuscire ("Carica" con un link non
+riproducibile, "Sblocca" grigio senza spiegazione).
+
+**Perché quei difetti erano sfuggiti**: la mia verifica responsive si fermava al
+primo livello di ogni schermata e non entrava dentro una bozza né dentro una
+traccia in modifica. Da qui le skill del progetto, in `.claude/skills/`:
+`verifica-dal-vivo` (con lo script che apre otto viste a nove larghezze e misura
+le posizioni vere, falsi allarmi delle barre fisse esclusi),
+`condivisione-bozze` (il giro a due dispositivi con i selettori giusti) e
+`scrittura`. Arrivano con il `git pull`, non si installa niente.
+
+Un falso allarme mio, per memoria: seminando una bozza a mano in `localStorage`
+sembrava che l'app non salvasse più niente. Non era vero — con una bozza creata
+dall'interfaccia si salva tutto e sopravvive al ricaricamento. Era il banco di
+prova a essere sbagliato, ed è scritto nella skill perché non ricapiti.
+
 **Come è nato il disordine che questa sessione ha ripulito**
 
 La sessione è partita su un branch nuovo creato da `main`, **senza che nessuno
