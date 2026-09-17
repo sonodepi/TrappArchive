@@ -33,6 +33,18 @@ Formato: data · branch · cosa è stato fatto · cosa resta aperto.
   `docs/AUDIT.md` e `docs/PROMPT_AGENTE_LOCALE.md`. I quattro documenti
   precedenti sono passati in `docs/storico/` con un avviso in testa.
 
+**Correzione in coda (17 settembre, pomeriggio)**
+
+L'utente ha provato a seguire le istruzioni appena scritte e non giravano: il
+percorso del clone che gli avevo indicato non esisteva (si è ritrovato dentro un
+`git init` accidentale in una cartella superiore, senza remoto e senza commit),
+e tutti i comandi dei documenti usavano `bunx`, che su quella macchina non c'è.
+`CLAUDE.md`, `docs/PROMPT_AGENTE_LOCALE.md` e questo hand-off ora usano gli
+script di `package.json` (`npm run lint`, `npm test`, `npm run build`,
+`npm run dev`, che funzionano anche con bun) e spiegano come **trovare** il
+clone invece di darne per scontato il percorso. Provato qui con npm, non solo
+con bun.
+
 **Come è nato il disordine che questa sessione ha ripulito**
 
 La sessione è partita su un branch nuovo creato da `main`, **senza che nessuno

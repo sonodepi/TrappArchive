@@ -3,12 +3,46 @@
 Questo file serve a far girare audit e lavori **sul PC**, dentro la cartella del
 progetto, invece che da una sessione cloud che il PC non lo vede.
 
+## 0. Prima di tutto: sei nel posto giusto?
+
+Non dare per scontato dove sta il clone. Questo comando elenca ogni repository
+sotto la tua cartella utente con il suo remoto, e non tocca niente:
+
+```bash
+find ~ -maxdepth 4 -name .git -type d 2>/dev/null | while read g; do
+  d=$(dirname "$g"); printf '%s → ' "$d"
+  git -C "$d" remote get-url origin 2>/dev/null || echo "(nessun remoto)"
+done
+```
+
+- **Stampa una riga con `sonodepi/TrappArchive`** → quella è la cartella buona.
+- **Non la stampa** → il clone non c'è: prendine uno nuovo, in una cartella
+  nuova, senza sovrascrivere niente di quello che hai già:
+
+  ```bash
+  mkdir -p ~/Scrivania/code/progetti/TrappArchive
+  cd ~/Scrivania/code/progetti/TrappArchive
+  git clone https://github.com/sonodepi/TrappArchive.git app
+  cd app
+  ```
+
+- **`git status` risponde "non ci sono ancora commit" in una cartella che non
+  c'entra** → c'è un `git init` accidentale in una cartella superiore. Prima
+  guarda, poi decidi:
+
+  ```bash
+  git rev-parse --show-toplevel   # dov'è davvero quel repository
+  git log --oneline 2>&1 | head   # se non stampa nessun commit, è vuoto
+  ```
+
+  Cancellare un `.git` è irreversibile: fallo solo dopo aver visto con i tuoi
+  occhi che è vuoto e che non è quello del progetto.
+
 ## Come si apre una sessione locale
 
 ```bash
-npm i -g @anthropic-ai/claude-code        # una volta sola
-cd ~/Scrivania/code/progetti/TrappArchive # la cartella che contiene il repo
-cd TrappArchive                           # il clone vero: `git remote -v` deve rispondere
+npm install -g @anthropic-ai/claude-code   # una volta sola; con sudo se dà errore di permessi
+cd <la cartella trovata al punto 0>
 claude
 ```
 
@@ -21,7 +55,7 @@ git status                # se non è pulito: git stash push -u -m "roba mia"
 git fetch origin
 git checkout main
 git pull --ff-only origin main
-bun install || npm install
+npm install               # oppure bun install, se hai bun
 ```
 
 ---
@@ -38,8 +72,9 @@ Da incollare in una sessione aperta nella cartella del repo.
 > l'audit deve partire da lì invece che da zero.
 >
 > Controlla, in quest'ordine, e riporta solo quello che verifichi davvero:
-> 1. `bunx tsc --noEmit`, `bunx vitest run`, `bunx vite build` — devono essere
->    tutti puliti; se non lo sono, quello è il primo punto dell'audit.
+> 1. `npm run lint`, `npm test`, `npm run build` — devono essere tutti puliti;
+>    se non lo sono, quello è il primo punto dell'audit. (Su questa macchina
+>    **bun non c'è**: usa gli script npm, non `bunx`.)
 > 2. L'interfaccia mantiene quello che promette? Ogni pulsante fa davvero quello
 >    che dice, ogni messaggio di successo segue un successo verificato.
 > 3. Si perde roba dell'utente da qualche parte? Cerca in particolare stato
@@ -48,7 +83,7 @@ Da incollare in una sessione aperta nella cartella del repo.
 > 4. Sicurezza: segreti nel codice o nella storia, dati che escono dal
 >    dispositivo senza che l'utente lo sappia, validazione di tutto ciò che
 >    entra da fuori (file importati, codici di condivisione, archivio locale).
-> 5. Responsive: avvia `bun run dev` e guarda ogni schermata a 390, 768, 1024 e
+> 5. Responsive: avvia `npm run dev` e guarda ogni schermata a 390, 768, 1024 e
 >    1280 px. Cerca sovrapposizioni vere e scorrimento orizzontale misurando le
 >    posizioni degli elementi, non a occhio.
 > 6. Codice morto, documenti che descrivono cose non più vere, dipendenze
@@ -73,9 +108,10 @@ Quando vuoi che qualcuno "sistemi un po' tutto" senza rompere niente.
 > di cose che funzionano; l'interfaccia resta in italiano e i commenti spiegano
 > il perché.
 >
-> Prima di ogni commit: `bunx tsc --noEmit`, `bunx vitest run`, `bunx vite build`
-> devono essere puliti, e la cosa che hai toccato la provi dal vivo con
-> `bun run dev` — i test verdi qui sono già passati mentre qualcosa era rotto.
+> Prima di ogni commit: `npm run lint`, `npm test`, `npm run build` devono
+> essere puliti, e la cosa che hai toccato la provi dal vivo con `npm run dev`
+> — i test verdi qui sono già passati mentre qualcosa era rotto. (Su questa
+> macchina **bun non c'è**: usa gli script npm.)
 >
 > Se trovi qualcosa di grosso che non rientra in questa passata, scrivilo in
 > `docs/AUDIT.md` invece di improvvisare una mezza correzione.

@@ -19,11 +19,23 @@ Il lavoro passa da **due ambienti che non condividono niente**:
 1. **Sessione cloud** (claude.ai/code): contenitore effimero, repo clonato in
    `/home/user/TrappArchive`, `bun` disponibile, push diretto su GitHub. **Non
    vede il PC dell'utente.**
-2. **Sessione locale** (VS Code / terminale): il repo vero, in
-   `~/Scrivania/code/progetti/TrappArchive/…`. Lì gira `bun run dev` e si vede
-   l'app in tempo reale.
+2. **Sessione locale** (VS Code / terminale): il clone vero sul PC. **Il suo
+   percorso non è scontato** — è già capitato di cercarlo dove non era, e di
+   finire dentro un `git init` accidentale in una cartella superiore. Si trova
+   così, senza toccare niente:
 
-Prima di dare per scontato dove ti trovi: `pwd` e `git remote -v`.
+   ```bash
+   find ~ -maxdepth 4 -name .git -type d 2>/dev/null | while read g; do
+     d=$(dirname "$g"); printf '%s → ' "$d"
+     git -C "$d" remote get-url origin 2>/dev/null || echo "(nessun remoto)"
+   done
+   ```
+
+   Su quella macchina c'è **npm**, non bun: i comandi sono `npm install`,
+   `npm run lint`, `npm test`, `npm run build`, `npm run dev`.
+
+Prima di dare per scontato dove ti trovi: `pwd` e `git remote -v`. Se il remoto
+non è `sonodepi/TrappArchive`, sei nel posto sbagliato.
 
 ## Cosa c'è su `main` adesso
 

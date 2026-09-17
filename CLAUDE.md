@@ -21,6 +21,19 @@ git branch -r                 # quali branch esistono davvero
 git log --oneline origin/main -5
 ```
 
+**Se `git remote -v` non stampa `sonodepi/TrappArchive`, sei nel posto
+sbagliato**: una copia sciolta, oppure dentro un `git init` fatto per sbaglio in
+una cartella superiore (succede, e da lì `git pull` risponde
+`'origin' does not appear to be a git repository`). Trova il clone vero prima di
+lavorare:
+
+```bash
+find ~ -maxdepth 4 -name .git -type d 2>/dev/null | while read g; do
+  d=$(dirname "$g"); printf '%s → ' "$d"
+  git -C "$d" remote get-url origin 2>/dev/null || echo "(nessun remoto)"
+done
+```
+
 Poi leggi, in questo ordine:
 
 1. `docs/REGISTRO_SESSIONI.md` — chi ha fatto cosa, su quale branch;
@@ -61,12 +74,17 @@ Vale anche se non hai committato niente.
 ## 4. Comandi
 
 ```bash
-bun install          # o npm install se bun non c'è
-bunx tsc --noEmit    # tipi, strict
-bunx vitest run      # test
-bunx vite build      # build di produzione
-bun run dev          # sviluppo su http://localhost:3000
+npm install          # oppure bun install, se bun c'è
+npm run lint         # tipi (tsc --noEmit), strict
+npm test             # test
+npm run build        # build di produzione
+npm run dev          # sviluppo su http://localhost:3000
 ```
+
+Sono gli script di `package.json`, quindi le stesse righe funzionano con npm e
+con bun (`bun install`, `bun run lint`, …). Il CI usa bun, ma **non dare per
+scontato che bun sia installato sulla macchina dove ti trovi**: sul PC
+dell'utente non c'è, e un documento pieno di `bunx` lì non gira.
 
 Un push su `main` ripubblica l'app su https://sonodepi.github.io/TrappArchive/
 tramite `.github/workflows/deploy.yml`. Da un branch non pubblica niente.
