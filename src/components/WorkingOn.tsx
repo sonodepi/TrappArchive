@@ -16,6 +16,8 @@ import {
 } from '../drafts/share';
 import type { AppSettings, LyricsFormat } from '../settings/types';
 import { countBars } from '../lyrics/bars';
+import { isConfigured } from '../cloud/firebase';
+import { recordTombstone } from '../cloud/tombstones';
 import { FormatPreferenceButton, LyricsEditor } from './LyricsEditor';
 
 type Notice = { kind: 'ok' | 'error'; text: string } | null;
@@ -145,6 +147,9 @@ export function WorkingOn({
 
   const confirmDelete = () => {
     if (!draftToDelete) return;
+    // La cancellazione va raccontata al cloud, altrimenti la bozza torna
+    // indietro alla prima sincronizzazione da un altro dispositivo.
+    if (isConfigured(settings.firebase)) recordTombstone('drafts', draftToDelete.id);
     setDrafts(drafts.filter(d => d.id !== draftToDelete.id));
     if (activeDraftId === draftToDelete.id) setActiveDraftId(null);
     setDraftToDelete(null);

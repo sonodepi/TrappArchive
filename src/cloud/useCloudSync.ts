@@ -20,6 +20,7 @@ import {
 } from './firebase';
 import { albumUpdatedAt, trackUpdatedAt, type SyncMeta } from './schema';
 import { describeSync, reconcile, type Reconciliation } from './sync';
+import { forgetTombstones, loadTombstones, withTombstones } from './tombstones';
 
 export type SyncStatus =
   | { state: 'idle' }
@@ -134,6 +135,12 @@ export function useCloudSync(
     }
 
     const lastSyncAt = readLastSync();
+    /**
+     * Le cancellazioni fatte qui rientrano ora nel confronto, come lapidi.
+     * Senza, una voce cancellata in locale risultava semplicemente assente e il
+     * cloud la rimandava indietro a ogni sincronizzazione.
+     */
+    const lapidi = loadTombstones();
     try {
       setStatus({ state: 'working', step: 'Lettura dal cloud…' });
 
@@ -144,19 +151,19 @@ export function useCloudSync(
       ]);
 
       const rTracks = reconcile<Track & SyncMeta>({
-        local: catalog.tracks as (Track & SyncMeta)[],
+        local: withTombstones<Track>(catalog.tracks, 'tracks', lapidi),
         remote: remoteTracks, lastSyncAt,
         updatedAtOf: trackUpdatedAt,
         isDeleted: t => t.deleted === true,
       });
       const rAlbums = reconcile<Album & SyncMeta>({
-        local: catalog.albums as (Album & SyncMeta)[],
+        local: withTombstones<Album>(catalog.albums, 'albums', lapidi),
         remote: remoteAlbums, lastSyncAt,
         updatedAtOf: albumUpdatedAt,
         isDeleted: a => a.deleted === true,
       });
       const rDrafts = reconcile<DraftProject & SyncMeta>({
-        local: catalog.drafts as (DraftProject & SyncMeta)[],
+        local: withTombstones<DraftProject>(catalog.drafts, 'drafts', lapidi),
         remote: remoteDrafts, lastSyncAt,
         updatedAtOf: d => d.updatedAt,
         isDeleted: d => d.deleted === true,
@@ -174,6 +181,10 @@ export function useCloudSync(
         albums: applyToLocal(catalog.albums, rAlbums),
         drafts: applyToLocal(catalog.drafts, rDrafts),
       });
+
+      // Raccontate al cloud: da qui in poi se ne ricorda lui, e un'altra
+      // sincronizzazione non deve rimandarle.
+      forgetTombstones(lapidi);
 
       const at = Date.now();
       writeLastSync(at);

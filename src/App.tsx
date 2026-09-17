@@ -19,6 +19,8 @@ import { useSettings } from './settings/store';
 import { loadCatalog, migrateLegacyKeys, saveCatalog } from './storage/catalog';
 import { deleteAudio, pruneOrphans } from './storage/audioStore';
 import { useCloudSync } from './cloud/useCloudSync';
+import { isConfigured } from './cloud/firebase';
+import { recordTombstone } from './cloud/tombstones';
 import { AlertTriangle, Disc, Settings as SettingsIcon, X } from 'lucide-react';
 
 // Le chiavi legacy vanno spostate prima della lettura, non in un effetto che
@@ -143,7 +145,20 @@ export default function App() {
     setActiveTab('library');
   };
 
+  /**
+   * Una cancellazione va raccontata al cloud, non solo fatta qui.
+   *
+   * Prima la voce spariva dall'elenco e basta: alla sincronizzazione successiva
+   * il cloud ce l'aveva ancora, qui no, e tornava indietro come se fosse
+   * arrivata da un altro dispositivo. La lapide dice "e' stata cancellata, e
+   * quando". Chi non usa il cloud non ne scrive nessuna.
+   */
+  const markDeleted = (kind: 'tracks' | 'albums' | 'drafts', id: string) => {
+    if (isConfigured(settings.firebase)) recordTombstone(kind, id);
+  };
+
   const handleDeleteTrack = (id: string) => {
+    markDeleted('tracks', id);
     // Il file audio va rimosso con la traccia: senza questo l'archivio cresce
     // a ogni cancellazione e non si libera mai.
     deleteAudio(id).catch(() => {
@@ -170,6 +185,7 @@ export default function App() {
   };
 
   const handleDeleteAlbum = (id: string) => {
+    markDeleted('albums', id);
     setAlbums(prev => prev.filter(a => a.id !== id));
   };
 
