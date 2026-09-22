@@ -1,0 +1,52 @@
+name: Controlli
+
+# Perche' esiste, visto che deploy.yml gia' controlla tutto.
+#
+# Perche' deploy.yml gira solo su `main`, cioe' **dopo** la pubblicazione: se
+# un branch rompe i tipi o i test, nessuno se ne accorge finche' non e' gia'
+# online. E su un branch `claude/*` non girava niente del tutto: il lavoro di
+# una sessione non lo controllava nessuno.
+#
+# Qui non si pubblica niente: si controlla e basta.
+
+on:
+  pull_request:
+  push:
+    branches:
+      - 'claude/**'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# Un push nuovo annulla il controllo del push precedente sullo stesso branch:
+# quello vecchio non serve piu' a nessuno.
+concurrency:
+  group: controlli-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  controlla:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Installa le dipendenze
+        run: bun install --frozen-lockfile
+
+      - name: Controlla i tipi
+        run: bunx tsc --noEmit
+
+      - name: Esegui i test
+        run: bunx vitest run
+
+      # Si costruisce con lo stesso BASE_PATH della pubblicazione: un percorso
+      # sbagliato non rompe la build, rompe la pagina, e va visto qui.
+      - name: Costruisci
+        run: bunx vite build
+        env:
+          BASE_PATH: /${{ github.event.repository.name }}/

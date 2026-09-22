@@ -11,7 +11,6 @@ on:
   push:
     branches:
       - main
-      - claude/trapparchive-app-review-x38gkz
   workflow_dispatch:
 
 permissions:
