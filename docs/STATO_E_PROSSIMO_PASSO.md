@@ -54,6 +54,13 @@ non è `sonodepi/TrappArchive`, sei nel posto sbagliato.
   è stata revocata. **Non va ripristinata** senza parlarne.
 - **Le cancellazioni non tornano indietro.** Vedi `docs/AUDIT.md` §2.1.
 - **Player e schermate sistemati** alle larghezze intermedie.
+- **Un hook che stampa lo stato a ogni sessione**, così nessuno riparte alla
+  cieca: branch esistenti, chi lavora su cosa, e l'avviso se il branch assegnato
+  è indietro rispetto a `main`. Funziona anche dentro un worktree.
+- **Controlli sui branch e sulle pull request** (`.github/workflows/ci.yml`),
+  non solo dopo la pubblicazione.
+- **Passata di sicurezza mirata** con la skill di Cloudflare: tre difetti
+  riparati, due punti lasciati aperti e scritti. Vedi `docs/AUDIT.md`.
 
 ### Cosa è stato scartato di proposito
 
@@ -93,19 +100,45 @@ Condivisione cifrata e sincronizzazione sono state scritte e verificate da
 sessioni automatiche. Una rilettura umana di `src/drafts/share.ts` e
 `src/cloud/` è la cosa più utile che possa fare una persona su questo progetto.
 
+## Voicebox: la dettatura c'è già, la trascrizione è una strada aperta
+
+[Voicebox](https://github.com/jamiepine/voicebox) (MIT) è uno studio vocale che
+gira **tutto sul dispositivo**: Whisper per capire il parlato, niente chiave,
+niente cloud. **Non può diventare una dipendenza di TrappArchive** — è un'app
+desktop con un backend Python e modelli da giga, questa è una PWA su GitHub
+Pages senza server. Ma due cose sono vere:
+
+- **Dettare le barre, oggi, senza scrivere una riga di codice.** La dettatura
+  globale con push-to-talk scrive nel campo che hai sotto il cursore: anche
+  nell'editor del testo. Non serve nessuna integrazione.
+- **È la risposta locale alla trascrizione che abbiamo tolto.** Quella con
+  Gemini è stata rimossa dopo che la chiave era finita nella storia pubblica
+  del repository. Whisper in locale rispetterebbe la regola local-first.
+  **Resta una decisione dell'utente** («toglila, vedremo in avanti»): è segnata
+  come strada possibile, non come lavoro da fare.
+  **E prima di prometterla va verificata una cosa**: una pagina servita in
+  `https://` che chiama `http://127.0.0.1:17493` può essere bloccata dal
+  browser come contenuto misto. Non l'ho provato, quindi non lo do per buono.
+
 ## Prossimo passo consigliato
 
 Nell'ordine:
 
 1. **Salvare la Feature 3** dalla copia sciolta (rischio di perdita reale).
-2. **Provare la sincronizzazione** con un progetto Firebase vero, incollando
+2. **Portare `vitest` a 4.1.11 o oltre**, da solo, con il suo commit:
+   [GHSA-82fw-gwwq-j7x9](https://github.com/advisories/GHSA-82fw-gwwq-j7x9).
+   È un cambio di versione maggiore sotto 146 test, quindi non va infilato in
+   coda a nient'altro. Non arriva a chi usa l'app: `vitest` non finisce nel
+   pacchetto pubblicato.
+3. **Provare la sincronizzazione** con un progetto Firebase vero, incollando
    `firestore.rules` nella console Firebase, e con due dispositivi: creare,
    modificare, **cancellare** e verificare che la cancellazione regga.
-3. **Usare l'app per scrivere davvero un pezzo**, e segnare cosa dà fastidio:
+4. **Usare l'app per scrivere davvero un pezzo**, e segnare cosa dà fastidio:
    è il tipo di difetto che i test non trovano (il player sovrapposto ai comandi
    l'ha trovato l'utente, non la suite).
-4. Se si vuole l'allineamento esatto col CI, installare `bun` sul PC invece di
-   usare `npm`.
+5. Se si vuole l'allineamento esatto col CI, installare `bun` sul PC invece di
+   usare `npm`. È anche il motivo per cui `npm audit` qui non gira (`ENOLOCK`:
+   c'è `bun.lock`, non `package-lock.json`).
 
 ## Dove guardare
 
@@ -114,5 +147,7 @@ Nell'ordine:
 | `CLAUDE.md` | Le regole, incluso cosa fare **prima** di scrivere codice |
 | `docs/REGISTRO_SESSIONI.md` | Chi ha fatto cosa, su quale branch |
 | `docs/AUDIT.md` | L'ultimo controllo completo e i difetti ancora aperti |
-| `docs/PROMPT_AGENTE_LOCALE.md` | Prompt pronti per lavorare da un terminale locale |
+| `docs/PROMPT_AGENTE_LOCALE.md` | Prompt pronti per lavorare da un terminale locale, e il verdetto sui repository controllati |
+| `docs/UFFICIO_AGENTI.md` | Far lavorare più agenti insieme (Munder Difflin): le scrivanie, le loro skill, le regole |
+| `docs/registro/` | Una sessione per file, e `IN_CORSO.md` con chi lavora adesso |
 | `docs/storico/` | Documenti superati. Raccontano il passato, non danno istruzioni |

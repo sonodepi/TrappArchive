@@ -78,13 +78,51 @@ progetto: dentro ci sono i comandi veri e i difetti già presi.
   testi dell'interfaccia. Si porta dietro dei server MCP (Figma, Slack, Notion,
   Gmail…) che puoi lasciare scollegati.
 
-**`security-guidance` — dopo, non adesso.** È utile, ma installa hook che girano
-a ogni modifica e a ogni commit: finché l'app non sta in piedi sono controlli
-che rallentano mentre si spostano ancora i mobili. Prima si fa funzionare, poi
-la si blinda.
+Più **tre** di [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills)
+(MIT), che ne contiene venticinque:
+
+```
+/plugin marketplace add addyosmani/agent-skills
+/plugin          # poi abilita SOLO queste tre
+```
+
+- **`frontend-ui-engineering`** — architettura dei componenti, responsive,
+  accessibilità WCAG 2.1 AA;
+- **`browser-testing-with-devtools`** — ispezione e profilazione nel browser;
+- **`performance-optimization`** — si misura prima di ottimizzare.
+
+**Le altre ventidue lasciale spente, e il motivo conta.** Venticinque skill
+generiche accanto alle quattro del progetto vuol dire che un agente può aprire
+`frontend-ui-engineering` al posto di `verifica-dal-vivo` e saltare lo script
+che misura: è esattamente così che sono passati i tre difetti che hai trovato
+tu. La regola sta in `CLAUDE.md` §6 — dove si sovrappongono, vince quella del
+progetto — ma meno rumore c'è, meno serve fidarsi di una regola.
+
+**`security-guidance` — resta fuori, e adesso c'è di meglio.** Installa hook
+che girano a ogni modifica e a ogni commit. Al suo posto, in
+`.claude/skills/security-audit/`, c'è la skill di Cloudflare: fa le stesse
+categorie di controlli ma **parte solo quando la chiami**, e arriva già col
+`git pull`.
 
 Quello che cercavi come "humanize" o "impeccable" nel catalogo **non esiste**:
 la regola contro il testo gonfio è la skill `scrittura` del progetto.
+
+## I sette repository che mi hai passato: verdetto e motivo
+
+Controllati il 22 settembre 2026, numeri e licenze presi dalle API di GitHub.
+I «no» sono scritti col motivo, perché fra sei mesi serve più il motivo del
+nome.
+
+| Repository | Cos'è | Verdetto |
+|---|---|---|
+| [cloudflare/security-audit-skill](https://github.com/cloudflare/security-audit-skill) · MIT · 15,2k★ | Skill per audit di sicurezza in sei fasi | **Preso.** È in `.claude/skills/security-audit/`, col profilo di questo progetto |
+| [addyosmani/agent-skills](https://github.com/addyosmani/agent-skills) · MIT · 96,7k★ | 25 skill generiche | **Prese tre**, le altre spente (sopra) |
+| [chaitanyagiri/munder-difflin](https://github.com/chaitanyagiri/munder-difflin) · MIT · 7,8k★ | Ufficio di agenti: memoria, mailbox, worktree per agente | **Sì**, e il repository è stato preparato: vedi `docs/UFFICIO_AGENTI.md` |
+| [alibaba/open-code-review](https://github.com/alibaba/open-code-review) · Apache-2.0 · 37,2k★ | Review dei diff con un LLM, commenti riga per riga | **Dopo.** Vive nelle pull request, e qui si spinge dritto su `main`. Adesso che c'è `ci.yml` ha un posto dove stare: un secondo job. Richiede una chiave LLM nei secrets, quindi è una scelta tua |
+| [jamiepine/voicebox](https://github.com/jamiepine/voicebox) · MIT · 55,2k★ | Studio vocale locale: clonazione, Whisper, dettatura | **Non come dipendenza** — è un'app desktop con backend Python, questa è una PWA senza server. Due usi veri in `STATO_E_PROSSIMO_PASSO.md` |
+| [Tencent/WeKnora](https://github.com/Tencent/WeKnora) · 27,3k★ · licenza «Other» | RAG aziendale: Go + PostgreSQL + Redis + database vettoriale + Docker | **No.** La sua idea buona — memoria fra sessioni, wiki automatica — qui è `docs/` più l'hook di avvio, a costo zero di infrastruttura. E la licenza non è una delle standard |
+| [affaan-m/ECC](https://github.com/affaan-m/ECC) · MIT · 262k★ | 68 agent, 292 skill, 94 shim, hook, 52 MB | **No, non qui.** Contraddice la ragione per cui `security-guidance` è rimasto fuori: hook a ogni modifica. Se ti incuriosisce, provalo su `sonodepi/Prova`, non su questo |
+| [NSA/ghidra](https://github.com/NationalSecurityAgency/ghidra) · Apache-2.0 · 79k★ | Reverse engineering di binari | **Zero.** Qui non c'è nessun binario: è TypeScript che gira nel browser |
 
 ---
 
@@ -129,9 +167,15 @@ Da incollare in una sessione aperta nella cartella del repo.
 Questo è il prompt da incollare quando vuoi che qualcuno «sistemi un po' tutto»
 senza rompere niente. Non è generico: dice da dove partire e come si verifica.
 
-> Leggi `CLAUDE.md` e le tre skill in `.claude/skills/`: sono di questo
-> progetto e vanno usate, non ignorate. Poi leggi `docs/AUDIT.md` e
+> Leggi `CLAUDE.md` e le quattro skill in `.claude/skills/`: sono di questo
+> progetto e vanno usate, non ignorate — e dove una skill del catalogo dice
+> un'altra cosa, vince quella del progetto. Poi leggi `docs/AUDIT.md` e
 > `docs/STATO_E_PROSSIMO_PASSO.md` per sapere cosa è già stato guardato.
+>
+> All'apertura l'hook ti ha già stampato i branch e chi sta lavorando su cosa.
+> Se quello stato non è comparso, l'hook non è partito: fallo girare a mano
+> (`./.claude/hooks/session-start.sh`) e guarda perché, invece di lavorare
+> alla cieca.
 >
 > **Si parte misurando.** Fai girare
 > `node .claude/skills/verifica-dal-vivo/controlla-schermate.mjs` (se manca

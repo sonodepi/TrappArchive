@@ -1,139 +1,189 @@
-# Audit — 17 settembre 2026
+# Audit di sicurezza — 22 settembre 2026
 
-Controllo completo fatto su `claude/pensive-pasteur-rb90qd` prima di portarlo su
-`main`. Copre il codice cambiato, lo stato generale del repository, la sicurezza
-e il comportamento dell'app dal vivo.
+Passata mirata sul codice di `claude/pensive-pasteur-rb90qd`, con la skill
+`security-audit` di Cloudflare in **guidance mode**: solo le parti che servono,
+niente sei fasi, niente sub-agenti, nessuna sandbox — qui non si esegue codice
+di nessun altro.
 
-**Verdetto: si può pubblicare.** I difetti trovati sono stati riparati in questa
-stessa tornata, tranne quelli elencati in fondo come ancora aperti.
+L'audit generale del 17 settembre è in
+[`docs/storico/AUDIT-2026-09-17.md`](storico/AUDIT-2026-09-17.md). Questo
+riguarda la sicurezza, che era il pezzo rimandato di proposito: prima l'app
+doveva funzionare.
+
+**Verdetto: tre difetti veri, riparati. Due punti aperti, scritti sotto.**
 
 ---
 
-## 1. Come è stato fatto
+## 1. Dove si è guardato, e dove no
 
-| Controllo | Strumento | Esito |
-|---|---|---|
-| Tipi | `bunx tsc --noEmit` (strict) | pulito |
-| Test | `bunx vitest run` | 140/140 |
-| Build | `bunx vite build` | completa |
-| Review del codice | skill `code-review`, sul diff `main..HEAD` | 12 rilievi, tutti affrontati |
-| Sicurezza | lettura integrale del diff con l'occhio alle categorie note | nessuna falla (§3) |
-| App dal vivo | Chromium sulla build di produzione | §4 |
+Questa è una PWA che gira nel browser, senza server: 10.405 righe di
+TypeScript in 51 file. Le superfici che esistono davvero sono cinque, ed è
+quello che dice `.claude/skills/security-audit/PROFILO-TRAPPARCHIVE.md`.
 
-La review del codice e quella di sicurezza sono state fatte in una passata sola,
-senza una seconda revisione indipendente: ogni rilievo è stato riletto contro il
-codice, ma nessuno è stato confermato da un secondo revisore.
+| Superficie | Esito |
+|---|---|
+| `src/drafts/share.ts` — l'unico punto in cui entra roba scritta da un'altra persona | §2.2 e §2.3 |
+| `src/storage/migrate.ts` — valida backup importati e archivio locale | §2.1, §2.3, §3 |
+| `firestore.rules` | pulito (§3) |
+| `localStorage` / IndexedDB | pulito in questa passata |
+| Dipendenze | §4 |
+
+**Non** si è guardato, perché non esiste in un'app così: memoria e binari, IPC
+locale, RPC, autenticazione e autorizzazione lato server, modelli di
+linguaggio (Gemini è stato rimosso).
 
 ## 2. Difetti trovati e riparati
 
-Dal peggiore in giù. Ognuno è un commit a sé, quindi si può togliere da solo.
+Ognuno ha un test che **diventa rosso se si toglie la correzione**, e l'ho
+verificato togliendola davvero, non immaginandolo.
 
-1. **Cancellazioni che risorgevano.** `tombstone()` era scritta, documentata e
-   testata, e non la chiamava nessuno: cancellare una traccia la toglieva
-   dall'elenco e basta, e la sincronizzazione successiva la rimetteva dentro
-   perché nel cloud c'era ancora. Valeva per tracce, album e bozze. Ora c'è un
-   registro delle cancellazioni (`src/cloud/tombstones.ts`) che entra nel
-   confronto e viene dimenticato appena raccontato al cloud. 13 test nuovi, il
-   primo dei quali riproduce il difetto.
-2. **La finestra di condivisione si bloccava per sempre.** Chiudere e riaprire
-   generava un id nuovo: da quel momento nessun codice già in giro poteva più
-   essere unito, in nessuna delle due direzioni — e un collaboratore non ha
-   nemmeno il pulsante per riaprire. Ora l'id è il canale della bozza, stabile;
-   un flag a parte dice se le unioni sono aperte adesso.
-3. **Codice e password di una bozza mostrati su un'altra.** `DraftEditor` non
-   aveva `key`, quindi passando da una bozza all'altra React riusava la stessa
-   istanza: codice cifrato e password della prima restavano a video, etichettati
-   come della seconda. Un clic su "Copia" e finivano alla persona sbagliata.
-4. **Testo perso durante la decifratura.** Decifrare costa 210.000 giri di
-   PBKDF2 — centinaia di millisecondi in cui si continua a scrivere. Il gestore
-   riscriveva l'elenco catturato *prima* dell'attesa: tutto quello battuto nel
-   frattempo spariva. Ora si scrive solo con aggiornamenti funzionali.
-5. **Stessa forma nel sync**: una traccia cancellata mentre la sincronizzazione
-   era in volo tornava indietro, perché il risultato veniva applicato al
-   catalogo com'era alla partenza.
-6. **La vecchia chiave Gemini restava nel browser.** Tolta la funzione, la
-   credenziale dell'utente rimaneva in `localStorage`, riscritta a ogni
-   salvataggio, senza più nessuna schermata da cui cancellarla. Ora
-   `loadSettings` la toglie e riscrive subito l'archivio.
-7. **Il visualizzatore si stampava sopra i comandi del player** a finestra
-   stretta (segnalato dall'utente). Misurato prima della correzione: a 1180px,
-   108 pixel di sovrapposizione sul tasto play e sulla barra di avanzamento.
-8. **Il visualizzatore nascosto continuava a disegnare**: nasconderlo con una
-   classe CSS lo lasciava montato, a 60 fotogrammi al secondo dentro un canvas
-   invisibile — batteria buttata sul telefono. E spariva anche dall'overlay a
-   tutto schermo, dove invece si vede. Ora viene montato solo dove si vede.
-9. **Spazi scritti apposta che sparivano**: chi incolonna le ad libs a mano
-   perdeva l'allineamento la prima volta che toccava la barra in vista divisa.
-10. Minori: la spiegazione della sintassi non compariva mai a chi tiene la vista
-    divisa; un blocco di una riga diceva "1 barre"; un'icona importata e mai
-    usata; i pulsanti di condivisione restavano bloccati a girare se la
-    cifratura falliva.
+### 2.1 Una bozza ricevuta poteva avere un numero qualsiasi di blocchi
 
-## 3. Sicurezza
+`src/storage/migrate.ts`, `parseDraft`. Gli autori avevano già un tetto
+(`MAX_AUTHORS = 4`), i blocchi no: `raw.blocks.map(parseBlock)` accettava
+quanti ne arrivavano.
 
-Nessuna falla introdotta da questa tornata. Punto per punto:
+**Cosa succedeva a chi usa l'app.** Un codice di condivisione con mezzo
+milione di blocchi non rompe l'app una volta sola: la bozza finisce in
+`localStorage` e viene ridisegnata **a ogni avvio**, quindi l'app resta
+inutilizzabile finché non si svuota l'archivio a mano.
 
-- **Cifratura della condivisione** (`src/drafts/share.ts`): AES-GCM con chiave
-  derivata via PBKDF2-SHA256 a 210.000 giri, sale di 16 byte e IV di 12 byte
-  generati a caso per ogni codice. La password è di 60 bit presi da
-  `crypto.getRandomValues`, su un alfabeto di 32 simboli senza resto nel modulo
-  (nessuna lettera più probabile di un'altra). La chiave derivata non è
-  esportabile. AES-GCM autentica il testo cifrato: una password sbagliata fa
-  fallire la decifratura invece di restituire spazzatura.
-- **Quello che esce dalla decifratura passa da `parseDraft`** prima di entrare
-  nell'app: un JSON valido ma malformato non manda in crash l'unione e non
-  inietta campi imprevisti.
-- **Nessun segreto nei log.** L'unico `console.warn` aggiunto stampa un errore
-  di archiviazione, non dati.
-- **Nessun costrutto pericoloso** introdotto: niente `dangerouslySetInnerHTML`,
-  `eval`, `innerHTML`, `document.write`.
-- **Credenziale ritirata rimossa dal dispositivo** (punto 6 sopra): questo è un
-  miglioramento, non un rilievo.
-- Resta vero, ed è il modello dichiarato, che **chi ha codice e password legge
-  la bozza**: chiudere la finestra impedisce di *unire*, non di leggere. Non è
-  aggirabile senza un server, e un server qui non c'è per scelta.
+**Chi poteva farlo.** Chi scrive con te: serve che tu incolli il suo codice e
+la sua password. Non un estraneo.
 
-## 4. Prova dal vivo (Chromium, build di produzione)
+**Riparato**: `MAX_BLOCKS = 1000`, largo di proposito — un pezzo lungo ha venti
+blocchi, non mille. È un paraurti contro l'assurdo, non un limite alla
+scrittura.
 
-- **Editor**: parentesi in giallo, numeri per barra anche quando il testo va a
-  capo, "Format preference" che divide e riunisce, colonne allineate barra per
-  barra. Provato nella scheda della traccia e nei blocchi delle bozze, a 1280px
-  e a 390px, scrivendo davvero: invio, unione con backspace, incolla, frecce.
-- **Condivisione fra due dispositivi** (due contesti browser separati, archivi
-  indipendenti): il capo apre la finestra e genera il codice, l'ospite lo sblocca
-  ed entra, vede la strofa del capo, prende il blocco libero, scrive, rimanda un
-  codice, il capo lo unisce e legge la strofa dell'ospite. Chiusa la finestra lo
-  stesso codice viene rifiutato; **riaperta, viene riaccettato** (è il difetto 2).
-- **Cancellazioni**: senza cloud configurato la traccia sparisce subito, resta
-  sparita dopo un ricaricamento e non viene scritto nessun registro; con il
-  cloud configurato viene registrata la lapide per la sincronizzazione.
-- **Gemini**: nessun pulsante, nessuna sezione nelle impostazioni, nessun pezzo
-  di codice nel bundle prodotto.
-- **Console pulita** in tutti i giri.
+### 2.2 Un codice enorme incollato inchiodava la scheda del browser
 
-## 5. Responsive
+`src/drafts/share.ts`, `decryptDraft`. Prima di qualunque controllo di
+lunghezza si facevano `atob`, un ciclo byte per byte su tutto il contenuto e
+210.000 giri di PBKDF2, **sul thread che disegna l'interfaccia**.
 
-Sei schermate (Bozze, Libreria, Nuova traccia, Album, Backup, Impostazioni) a
-390, 768, 900, 1024, 1180, 1280 e 1600 px, misurando le posizioni reali degli
-elementi invece di guardarle a occhio:
+**Riparato**: il controllo di lunghezza viene per primo, prima che la chiave
+venga derivata — è l'unico controllo che costa zero. `MAX_CODE_LENGTH` = 4 MB,
+molto sopra qualunque bozza vera e molto sotto la soglia in cui il browser si
+pianta.
 
-- nessuno scorrimento orizzontale, nessun elemento fuori dallo schermo;
-- nessuna sovrapposizione vera fra comandi. Le uniche segnalazioni erano
-  elementi tagliati dal bordo dell'area che scorre — contenuto che passa sotto
-  il player, che è come deve funzionare.
+### 2.3 Indirizzi da fuori senza controllo dello schema
 
-## 6. Cosa resta aperto
+`src/storage/migrate.ts`. Una URL che arriva da un backup importato o da un
+codice di condivisione (`audio.url`, `audioFilePath`, `beatUrl`) finiva senza
+filtri in `<audio src>` (`src/components/Player.tsx:103`) e in `fetch`
+(`src/storage/audioAccess.ts:29`).
 
-1. **La Feature 3 "da registrare" non è committata da nessuna parte.** Vive solo
-   in una copia sciolta non-git sul PC (`~/Scrivania/code/progetti/TrappArchive/
-   TrappArchive-claude-trapparchive-app-review-x38gkz`), e tocca `types.ts`,
-   `TrackEditor.tsx`, `Library.tsx`. Se quella cartella viene cancellata, quel
-   lavoro sparisce. **Da salvare prima di qualunque pulizia.**
-2. **La sincronizzazione Firestore non è mai stata provata con un progetto
+**Onestà su quanto è grave: oggi non è sfruttabile.**
+`audio.src = 'javascript:...'` non esegue niente, e `fetch('file:///...')`
+fallisce nel browser. Ma quella URL è già a un passo da un `<a href>`, e il
+giorno che qualcuno la renda un link, `javascript:` diventa esecuzione di
+codice. Si chiude adesso che costa una riga.
+
+**Riparato**: solo `http:` e `https:`, nell'unico imbuto da cui passa ogni
+oggetto che arriva da fuori.
+
+### 2.4 Non di sicurezza, trovato per strada
+
+`extractYoutubeId` in `src/utils.ts` non era ancorato all'inizio
+dell'indirizzo: `https://altrosito.it/youtu.be/ID` veniva scambiato per un
+video di YouTube, e l'app mostrava un player sbagliato invece di dire che quel
+link non si può riprodurre. L'origine dell'iframe è fissa
+(`https://www.youtube.com/embed/`), quindi non c'era modo di uscirne: era un
+difetto di correttezza, non un buco.
+
+## 3. Cose controllate e risultate a posto
+
+Scritte qui perché nessuno ci rispenda un'ora.
+
+- **Niente XSS.** In tutto `src/` non c'è **un solo** `dangerouslySetInnerHTML`,
+  `innerHTML`, `eval` o `new Function`. Il testo delle canzoni, ad libs
+  comprese, passa per elementi React, che fanno l'escape da soli.
+- **Niente inquinamento del prototipo.** `migrate.ts` costruisce oggetti nuovi
+  campo per campo: nessun merge ricorsivo, nessuna scrittura con chiave presa
+  dall'esterno. Una chiave `__proto__` in un JSON importato non ha dove
+  attaccarsi, e non c'è nessun punto che la rilegga.
+- **`firestore.rules`**: ogni utente vede e scrive solo sotto il proprio `uid`,
+  con un `allow ... if false` esplicito su tutto il resto, così una raccolta
+  aggiunta domani non resta aperta per dimenticanza.
+- **La password monouso non ha bias.** L'alfabeto di `generatePassphrase` ha
+  esattamente 32 caratteri e 256 è divisibile per 32, quindi il `% 32` non
+  sbilancia niente. Tre gruppi da quattro fanno 60 bit di entropia.
+- **AES-GCM con IV e sale nuovi a ogni cifratura**, chiave non estraibile,
+  autenticazione che distingue davvero una password sbagliata da un codice
+  malformato.
+- **`getTunebatSearchUrl`** passa per `encodeURIComponent` su un'origine fissa.
+
+## 4. Dipendenze
+
+`npm audit` **non gira su questo progetto**: non c'è nessun `package-lock.json`,
+solo `bun.lock`, e risponde `ENOLOCK`. L'ho eseguito fuori dal repository,
+generando un lockfile da `package.json` in una cartella di lavoro.
+
+| Cosa | Esito |
+|---|---|
+| Dipendenze di **produzione** (quello che finisce nel browser di chi usa l'app) | **0 vulnerabilità** |
+| Dipendenze di **sviluppo** | 2 moderate, entrambe la stessa: [GHSA-82fw-gwwq-j7x9](https://github.com/advisories/GHSA-82fw-gwwq-j7x9), path traversal / lettura di file arbitrari in `@vitest/mocker`, intervallo `>=2.1.0 <4.1.11`. Qui c'è `vitest ^3.2.4` |
+
+**Non l'ho aggiornato**, e non per pigrizia: sistemarlo vuol dire portare
+`vitest` a 4.1.11 o oltre, cioè un cambio di versione maggiore sotto 146 test,
+in mezzo a una passata di sicurezza. Allargare così una correzione è il modo
+migliore per romperne un'altra. Va fatto, da solo, con il suo commit.
+
+Quella vulnerabilità **non arriva a chi usa l'app**: `vitest` non finisce nel
+pacchetto pubblicato. Morde solo chi esegue i test su codice di cui non si
+fida, e qui i test sono i nostri.
+
+## 5. Cosa resta aperto
+
+1. **Un indirizzo che arriva da fuori viene contattato da solo.** Anche con lo
+   schema ristretto a http/https, aprire una traccia ricevuta da qualcun altro
+   fa partire una richiesta al server scritto in quel file — e quel server
+   impara il tuo indirizzo IP e l'ora in cui hai aperto quella traccia. Sono
+   dati tuoi che escono dal dispositivo, e la regola numero uno di questo
+   progetto dice il contrario.
+   **La correzione giusta non è tecnica, è di interfaccia**: distinguere una
+   URL che hai scritto tu da una arrivata in un file di un altro, e per la
+   seconda chiedere prima di scaricare. Serve un campo in più su `AudioSource`,
+   cioè un cambio di forma dei dati: non è roba da infilare in coda a una
+   passata di sicurezza. **Scritta qui invece di improvvisare una mezza
+   correzione.**
+2. **Il formato del codice non porta con sé i parametri della cifratura.**
+   `TAv1.` contiene sale, IV e testo cifrato, ma non il numero di giri di
+   PBKDF2, che è cablato a 210.000. Le linee guida OWASP oggi dicono 600.000
+   per PBKDF2-HMAC-SHA256. Alzare quel numero **invaliderebbe in silenzio ogni
+   codice già in giro**, perché chi decifra userebbe un conteggio diverso da
+   chi ha cifrato. Per cambiarlo serve un prefisso `TAv2.` che dichiari i
+   parametri. Non è urgente — sono password monouso da 60 bit, generate
+   dall'app e non scelte da una persona — ma è il tipo di cosa che si scopre
+   tardi e male.
+3. **La Feature 3 "da registrare" non è committata da nessuna parte.** Vive
+   solo in una copia sciolta non-git sul PC. Se quella cartella viene
+   cancellata, quel lavoro sparisce. **Da salvare prima di qualunque pulizia.**
+4. **La sincronizzazione Firestore non è mai stata provata con un progetto
    vero.** La logica è pura e testata (16 + 13 test), ma il giro completo con
    due dispositivi e un progetto Firebase reale non l'ha mai fatto nessuno.
-3. **Nessuno ha ancora guardato questo lavoro con occhi umani.** Le due funzioni
-   più delicate — condivisione cifrata e sincronizzazione — sono state verificate
-   da sessioni automatiche, mai riviste da una persona.
-4. **`npm` contro `bun`**: il CI usa `bun` e il `bun.lock`; sul PC si è usato
-   `npm`. Non garantisce le stesse versioni esatte. Se conta, installare `bun`.
+5. **Nessuno ha ancora guardato questo lavoro con occhi umani.** Condivisione
+   cifrata e sincronizzazione sono state scritte e verificate da sessioni
+   automatiche. Una rilettura umana di `src/drafts/share.ts` e `src/cloud/` è
+   la cosa più utile che possa fare una persona su questo progetto.
+6. **`npm` contro `bun`.** Il CI costruisce con `bun` e `bun.lock`; sul PC si
+   usa `npm`, che risolve da capo e può prendere versioni diverse. È anche il
+   motivo per cui `npm audit` non gira. Due strade: installare `bun` sul PC,
+   oppure committare anche un `package-lock.json` — e allora vanno tenuti
+   allineati tutti e due, che è un costo suo.
+
+## 6. Come è stato verificato
+
+| Controllo | Comando | Esito |
+|---|---|---|
+| Tipi | `npm run lint` | pulito |
+| Test | `npm test` | 146/146 (erano 140: +6 nuovi) |
+| Build | `npm run build` | completa, 19 file in precache |
+| I test riproducono i difetti | correzioni tolte a mano, test rieseguiti | 3 rossi, poi 3 verdi |
+| Dipendenze | `npm audit` su un lockfile generato fuori dal repo | §4 |
+
+**Una passata sola, nessuna seconda revisione indipendente.** Ogni rilievo è
+stato riletto contro il codice, ma nessuno è stato confermato da un secondo
+revisore. Le sei fasi complete della skill di Cloudflare servono proprio a
+quello, e costano 4-20 invocazioni: se questo codice diventa qualcosa che usa
+gente che non conosci, è il momento di spenderle.
