@@ -12,13 +12,24 @@ Il disordine più costoso di questo progetto non è mai stato il codice: è stat
 sessione partisse da `main` e riscrivesse da zero una cosa che su un altro
 branch era già fatta, perché nessuno gliel'aveva detto.
 
-Quindi, ogni volta, nell'ordine:
+**Questa parte adesso la fa l'hook**, non la tua buona volontà. All'apertura
+di ogni sessione in questa cartella, `.claude/hooks/session-start.sh` esegue il
+`fetch` e ti stampa davanti: i branch che esistono con la data dell'ultimo
+commit, chi sta lavorando su cosa, e **un avviso se il branch su cui ti hanno
+messo è indietro rispetto a `origin/main`**. Parte anche dentro un worktree, che
+è come lavora un ufficio di agenti in parallelo.
+
+Se quello stato non compare, l'hook non è partito: fallo partire a mano e
+guarda perché, invece di lavorare alla cieca.
+
+```bash
+./.claude/hooks/session-start.sh
+```
+
+Il controllo che l'hook non può fare per te è **dove sei**:
 
 ```bash
 pwd && git remote -v          # sono nel clone vero o in una copia sciolta?
-git fetch --all --prune
-git branch -r                 # quali branch esistono davvero
-git log --oneline origin/main -5
 ```
 
 **Se `git remote -v` non stampa `sonodepi/TrappArchive`, sei nel posto
@@ -36,7 +47,8 @@ done
 
 Poi leggi, in questo ordine:
 
-1. `docs/REGISTRO_SESSIONI.md` — chi ha fatto cosa, su quale branch;
+1. `docs/REGISTRO_SESSIONI.md` — l'indice di chi ha fatto cosa, e da lì il file
+   della sessione che ti riguarda in `docs/registro/`;
 2. `docs/STATO_E_PROSSIMO_PASSO.md` — lo stato vero e cosa manca;
 3. `docs/AUDIT.md` — l'ultimo controllo, con i difetti ancora aperti.
 
@@ -45,9 +57,20 @@ contiene lavoro vero: fermati e dillo all'utente.** Non ripartire da `main`
 facendo finta di niente: è esattamente così che sono nati editor doppi e
 funzioni riscritte due volte.
 
-**Prima di chiudere la sessione**, aggiungi la tua riga in
-`docs/REGISTRO_SESSIONI.md`: data, branch, cosa hai fatto, cosa resta aperto.
-Vale anche se non hai committato niente.
+**Aprendo**, scrivi la tua riga in `docs/registro/IN_CORSO.md`: branch,
+macchina, su cosa stai per mettere le mani. È quello che l'hook stampa alla
+sessione dopo la tua, ed è l'unico modo che ha per sapere che quel file è già
+occupato.
+
+**Prima di chiudere**, crea `docs/registro/AAAA-MM-GG-<ultimo pezzo del
+branch>.md` con cosa hai fatto, cosa hai verificato **e come**, cosa resta
+aperto; aggiungi la riga nell'indice `docs/REGISTRO_SESSIONI.md`; e **togli la
+tua riga da `IN_CORSO.md`**, che se resta lì blocca un'altra sessione per
+niente. Vale anche se non hai committato niente.
+
+Un file per sessione, mai un file condiviso: con due sessioni in parallelo un
+registro unico si scontra al merge ogni volta, e chi perde il conflitto perde
+anche la riga dell'altro.
 
 ## 2. Branch
 
@@ -139,7 +162,8 @@ li prende.
 | File | Cosa contiene |
 |---|---|
 | `docs/STATO_E_PROSSIMO_PASSO.md` | Stato attuale, rischi noti, prossimo passo |
-| `docs/REGISTRO_SESSIONI.md` | Registro delle sessioni: data, branch, esito |
+| `docs/REGISTRO_SESSIONI.md` | **Indice** delle sessioni: data, branch, due righe |
+| `docs/registro/` | Una sessione per file, e `IN_CORSO.md` con chi lavora adesso |
 | `docs/AUDIT.md` | Ultimo controllo completo, con i difetti ancora aperti |
 | `docs/PROMPT_AGENTE_LOCALE.md` | Prompt pronti per far girare audit e lavori da un terminale locale |
 | `docs/storico/` | Documenti superati, tenuti per capire come si è arrivati qui. **Non** sono istruzioni valide |
