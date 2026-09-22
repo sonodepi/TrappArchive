@@ -142,14 +142,28 @@ Cose da sapere prima di toccarle:
 
 ## 6. Le skill del progetto
 
-In `.claude/skills/` ci sono tre skill che arrivano con il repository: non c'e'
-niente da installare, ogni sessione aperta qui le vede.
+In `.claude/skills/` ci sono quattro skill che arrivano con il repository: non
+c'e' niente da installare, ogni sessione aperta qui le vede.
 
 | Skill | A cosa serve |
 |---|---|
 | `verifica-dal-vivo` | Controllare l'app come la usa una persona: entrare nelle sotto-schermate e misurare le posizioni reali a nove larghezze. Contiene lo script che lo fa da solo |
 | `condivisione-bozze` | Il giro completo fra due dispositivi, con i selettori giusti |
 | `scrittura` | Come si scrive qui: commit, documenti, commenti, testi dell'interfaccia |
+| `security-audit` | Di Cloudflare (MIT). **Leggi prima il suo `PROFILO-TRAPPARCHIVE.md`**: dice quali dei suoi documenti valgono per un'app che gira solo nel browser e quali no |
+
+### Se una skill del catalogo dice una cosa e una di queste ne dice un'altra,
+### vince questa
+
+Le skill generiche del catalogo (`frontend-ui-engineering`,
+`performance-optimization`, `browser-testing-with-devtools`, quelle di un
+plugin) sono buone, ma parlano di un progetto qualunque. Queste quattro hanno
+dentro **i selettori veri, lo script vero e i difetti gia' presi**.
+
+Il rischio e' concreto: se qualcuno apre `frontend-ui-engineering` al posto di
+`verifica-dal-vivo` e salta lo script che misura, si torna esattamente ai tre
+difetti che l'utente ha trovato prima di noi. Una skill generica si usa **in
+piu'**, mai **al posto**.
 
 **Dopo ogni modifica all'interfaccia** si fa girare
 `node .claude/skills/verifica-dal-vivo/controlla-schermate.mjs` (serve
