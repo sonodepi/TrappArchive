@@ -1,6 +1,11 @@
 export function extractYoutubeId(url: string): string | null {
   if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?]+)/);
+  // Ancorato all'inizio dell'indirizzo: senza, `https://altrosito.it/youtu.be/ID`
+  // veniva scambiato per un video di YouTube e l'app mostrava il player
+  // sbagliato al posto di dire che quel link non si puo' riprodurre.
+  const match = url.match(
+    /^(?:https?:\/\/)?(?:www\.|m\.)?(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([^&?/]+)/,
+  );
   return match ? match[1] : null;
 }
 

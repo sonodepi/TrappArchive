@@ -10,6 +10,42 @@
 import type { Album, AudioSource, DraftAuthor, DraftBlock, DraftProject, Track } from '../types';
 import { MAX_AUTHORS } from '../types';
 
+/**
+ * Tetto ai blocchi di una bozza che arriva da fuori.
+ *
+ * Una bozza ricevuta con un codice di condivisione, o letta da un backup
+ * importato, viene salvata in localStorage e ridisegnata a ogni avvio. Senza
+ * un tetto, una con mezzo milione di blocchi non rompe l'app una volta: la
+ * rompe per sempre, perche' il difetto e' ormai in archivio. Gli autori un
+ * tetto ce l'avevano gia' (`MAX_AUTHORS`), i blocchi no.
+ *
+ * Il numero e' largo di proposito: e' un paraurti contro l'assurdo, non un
+ * limite alla scrittura. Un pezzo lungo ha venti blocchi, non mille.
+ */
+export const MAX_BLOCKS = 1000;
+
+/**
+ * Gli unici schemi che un indirizzo puo' avere quando arriva da fuori.
+ *
+ * Oggi nessuno degli altri e' sfruttabile: `audio.src = 'javascript:...'` non
+ * esegue niente e `fetch('file:///...')` fallisce nel browser. Ma quell'URL
+ * passa gia' per un `<audio src>` e per un `fetch`, e basta che un giorno
+ * qualcuno lo renda un `<a href>` perche' `javascript:` diventi esecuzione di
+ * codice. Si chiude adesso, che costa una riga.
+ */
+const SCHEMI_AMMESSI = ['http:', 'https:'];
+
+function asExternalUrl(value: unknown): string {
+  if (typeof value !== 'string' || !value.trim()) return '';
+  try {
+    return SCHEMI_AMMESSI.includes(new URL(value, 'https://trapparchive.invalid').protocol)
+      ? value
+      : '';
+  } catch {
+    return '';
+  }
+}
+
 export interface ParseResult<T> {
   items: T[];
   /** Voci scartate perché irrecuperabili. */
@@ -47,8 +83,9 @@ export function migrateAudioSource(raw: Record<string, unknown>): AudioSource | 
         sizeBytes: asNumber(existing.sizeBytes),
       };
     }
-    if (existing.kind === 'remote' && typeof existing.url === 'string' && existing.url) {
-      return { kind: 'remote', url: existing.url };
+    if (existing.kind === 'remote') {
+      const url = asExternalUrl(existing.url);
+      return url ? { kind: 'remote', url } : undefined;
     }
     if (existing.kind === 'unavailable') {
       return { kind: 'unavailable', name: asString(existing.name) || undefined };
@@ -59,7 +96,8 @@ export function migrateAudioSource(raw: Record<string, unknown>): AudioSource | 
   const legacyPath = asString(raw.audioFilePath).trim();
   if (!legacyPath) return undefined;
   if (legacyPath.startsWith('blob:')) return { kind: 'unavailable' };
-  return { kind: 'remote', url: legacyPath };
+  const url = asExternalUrl(legacyPath);
+  return url ? { kind: 'remote', url } : undefined;
 }
 
 /** Una traccia è recuperabile se ha almeno un id e un titolo utilizzabili. */
@@ -183,7 +221,7 @@ export function parseDraft(raw: unknown): DraftProject | null {
     : [];
 
   const blocks = Array.isArray(raw.blocks)
-    ? raw.blocks.map(parseBlock).filter((b): b is DraftBlock => b !== null)
+    ? raw.blocks.map(parseBlock).filter((b): b is DraftBlock => b !== null).slice(0, MAX_BLOCKS)
     : blocksFromLegacy(raw, ownerId);
 
   return {
@@ -193,7 +231,7 @@ export function parseDraft(raw: unknown): DraftProject | null {
     ownerId,
     authors,
     blocks,
-    beatUrl: asString(raw.beatUrl),
+    beatUrl: asExternalUrl(raw.beatUrl),
     updatedAt: asNumber(raw.updatedAt, Date.now()),
     bpm: typeof raw.bpm === 'number' ? raw.bpm : undefined,
     key: typeof raw.key === 'string' ? raw.key : undefined,

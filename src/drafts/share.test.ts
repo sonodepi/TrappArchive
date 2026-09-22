@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { DraftProject } from '../types';
 import {
-  canMergeIntoOpenWindow, closeShareWindow, decryptDraft, encryptDraft,
+  MAX_CODE_LENGTH, canMergeIntoOpenWindow, closeShareWindow, decryptDraft, encryptDraft,
   generatePassphrase, openShareWindow,
 } from './share';
 
@@ -124,5 +124,24 @@ describe('canMergeIntoOpenWindow', () => {
     const vecchia = draft({ shareSessionId: 'canale-vecchio' });
     const incoming = draft({ shareSessionId: 'canale-vecchio' });
     expect(canMergeIntoOpenWindow(vecchia, incoming)).toBe(false);
+  });
+});
+
+describe('un codice ostile non deve bloccare il browser', () => {
+  it('rifiuta subito un codice troppo lungo, senza derivare la chiave', async () => {
+    // Decifrare costa 210.000 giri di PBKDF2, e prima ancora atob e un ciclo
+    // byte per byte su tutto il contenuto. Senza un tetto, incollare un codice
+    // da decine di megabyte inchioda la scheda del browser.
+    const enorme = 'TAv1.' + 'A'.repeat(MAX_CODE_LENGTH) + '.AAAA.AAAA';
+    const inizio = Date.now();
+    const esito = await decryptDraft(enorme, 'ABCD-EFGH-JKLM');
+    expect(esito).toEqual({ ok: false, reason: 'formato' });
+    expect(Date.now() - inizio).toBeLessThan(200);
+  });
+
+  it('accetta un codice di lunghezza normale', async () => {
+    const codice = await encryptDraft(draft(), 'ABCD-EFGH-JKLM');
+    expect(codice.length).toBeLessThan(MAX_CODE_LENGTH);
+    expect(await decryptDraft(codice, 'ABCD-EFGH-JKLM')).toMatchObject({ ok: true });
   });
 });

@@ -1,7 +1,7 @@
 import tailwindcss from '@tailwindcss/vite';
 import react from '@vitejs/plugin-react';
 import path from 'path';
-import { defineConfig } from 'vite';
+import { defineConfig } from 'vitest/config';
 import { VitePWA } from 'vite-plugin-pwa';
 
 /**
@@ -124,6 +124,14 @@ export default defineConfig(() => {
       alias: {
         '@': path.resolve(__dirname, '.'),
       },
+    },
+    test: {
+      // Le skill in .claude/ portano con se' i loro test, scritti per
+      // `node:test`. Vitest li raccoglierebbe e fallirebbe con "No test suite
+      // found", facendo sembrare rotta l'app quando e' rotto solo il
+      // rilevamento: `npm test` guarda il codice del progetto, non gli
+      // attrezzi di chi lo controlla.
+      exclude: ['node_modules/**', 'dist/**', '.claude/**'],
     },
     server: {
       // HMR is disabled in AI Studio via DISABLE_HMR env var.

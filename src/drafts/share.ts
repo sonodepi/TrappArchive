@@ -43,6 +43,20 @@ const SALT_BYTES = 16;
 const IV_BYTES = 12;
 const CODE_PREFIX = 'TAv1.';
 
+/**
+ * Tetto alla lunghezza di un codice, controllato prima di toccarlo.
+ *
+ * Decifrare costa 210.000 giri di PBKDF2, e prima ancora un `atob` e un ciclo
+ * byte per byte su tutto il contenuto: tutto sul thread che disegna
+ * l'interfaccia. Senza questo tetto, un codice da decine di megabyte incollato
+ * nel campo inchioda la scheda del browser di chi lo riceve.
+ *
+ * Quattro megabyte stanno molto sopra qualunque bozza vera — un pezzo lungo
+ * sta in qualche decina di migliaia di caratteri — e molto sotto la soglia in
+ * cui il browser si pianta.
+ */
+export const MAX_CODE_LENGTH = 4_000_000;
+
 /** Niente 0/O/1/I: sono le coppie che si confondono di piu' a voce o a mano. */
 const PASSPHRASE_ALPHABET = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 
@@ -150,6 +164,9 @@ export type DecryptResult =
  * sbagliata.
  */
 export async function decryptDraft(code: string, passphrase: string): Promise<DecryptResult> {
+  // Prima di tutto la lunghezza: e' l'unico controllo che costa zero, e viene
+  // prima della derivazione della chiave proprio per quello.
+  if (code.length > MAX_CODE_LENGTH) return { ok: false, reason: 'formato' };
   if (!code.startsWith(CODE_PREFIX)) return { ok: false, reason: 'formato' };
   const parts = code.slice(CODE_PREFIX.length).split('.');
   if (parts.length !== 3) return { ok: false, reason: 'formato' };

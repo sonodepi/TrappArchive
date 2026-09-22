@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { migrateAudioSource, parseDraft, parseList, parseTrack } from './migrate';
+import { MAX_BLOCKS, migrateAudioSource, parseDraft, parseList, parseTrack } from './migrate';
 import { ALBUMS_KEY, DRAFTS_KEY, TRACKS_KEY, loadCatalog, saveCatalog } from './catalog';
 import type { Track } from '../types';
 
@@ -173,5 +173,35 @@ describe('bozze', () => {
       authors: Array.from({ length: 9 }, (_, i) => ({ id: `a${i}`, name: `A${i}` })),
     });
     expect(draft!.authors).toHaveLength(4);
+  });
+});
+
+describe('limiti su ciò che arriva da fuori', () => {
+  it('non accetta un numero qualsiasi di blocchi', () => {
+    // Una bozza ricevuta da un'altra persona finisce in localStorage e viene
+    // disegnata tutta. Senza un tetto, un codice con mezzo milione di blocchi
+    // rende l'app inutilizzabile a ogni avvio, non solo una volta.
+    const blocchi = Array.from({ length: MAX_BLOCKS + 50 }, (_, i) => ({
+      id: `b${i}`, label: 'Strofa', authorId: null, text: 'x', done: false, updatedAt: 1,
+    }));
+    const bozza = parseDraft({ id: 'd1', ownerId: 'a', blocks: blocchi });
+    expect(bozza?.blocks).toHaveLength(MAX_BLOCKS);
+  });
+
+  it('scarta un indirizzo audio con uno schema che non è http o https', () => {
+    for (const url of ['javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,<script>']) {
+      expect(migrateAudioSource({ audio: { kind: 'remote', url } })).toBeUndefined();
+    }
+  });
+
+  it('tiene gli indirizzi audio normali', () => {
+    expect(migrateAudioSource({ audio: { kind: 'remote', url: 'https://esempio.it/base.mp3' } }))
+      .toEqual({ kind: 'remote', url: 'https://esempio.it/base.mp3' });
+  });
+
+  it('scarta un beatUrl con uno schema pericoloso, tenendo il resto della bozza', () => {
+    const bozza = parseDraft({ id: 'd1', ownerId: 'a', title: 'Pezzo', beatUrl: 'javascript:alert(1)' });
+    expect(bozza?.beatUrl).toBe('');
+    expect(bozza?.title).toBe('Pezzo');
   });
 });
