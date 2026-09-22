@@ -26,7 +26,19 @@ telefoni diversi.
 - Chiudere **non è una revoca**: chi ha codice e password continua a leggerli.
   Impedisce solo di unirli.
 
-## Il giro completo
+## Il giro completo, gia' scritto
+
+```bash
+npm run build && npx vite preview --port 4173 &
+node .claude/skills/condivisione-bozze/giro-completo.mjs
+```
+
+Fa i sette passi qui sotto e stampa una riga per passo. Serve Playwright
+(`npm i -D playwright`, oppure quello globale) — non e' fra le dipendenze del
+progetto di proposito: serve a chi verifica, e costerebbe a tutti gli altri un
+browser da scaricare.
+
+Se lo vuoi rifare a mano, o adattarlo:
 
 ```js
 import { chromium } from 'playwright';
@@ -52,6 +64,7 @@ I selettori giusti, che trovarli è costato tre tentativi:
 | Apri / chiudi finestra | `getByRole('button', { name: 'Apri', exact: true })` · `getByText('Chiudi', { exact: true })` |
 | Genera il codice | `getByRole('button', { name: /Genera codice/ })` |
 | Codice e password generati | i due campi `input[readonly], textarea[readonly]`: la password è quella corta con i trattini, il codice è la stringa lunga |
+| **Apri il pannello per incollare** | `getByRole('button', { name: /Incolla un codice/ })` — **serve per forza** se quel dispositivo non ha ancora nessuna bozza: il campo non esiste finche' non lo apri, e senza questo passo lo script aspetta trenta secondi e muore |
 | Incolla un codice | `getByPlaceholder('Incolla qui il codice...')` + `getByPlaceholder('Password')` |
 | Conferma | `getByRole('button', { name: 'Sblocca', exact: true })` |
 | Avviso dell'esito | il riquadro con classe `mb-5 p-3 border rounded-xl` |
@@ -66,8 +79,10 @@ anche "Scarica / Installa App" nella barra laterale.
    può scrivere solo nei blocchi propri o liberi.
 2. Apre la finestra e genera il codice → compaiono password (tipo `8Q6D-Y2F6-G33B`)
    e un codice lungo circa 1000 caratteri che comincia per `TAv1.`.
-3. **L'ospite** incolla codice e password e preme Sblocca → «Sei entrato in
-   "…"», la bozza compare, e **vede la strofa del capo**.
+3. **L'ospite** apre il pannello con «Incolla un codice» (se non ha bozze, il
+   campo non c'e' prima di quel clic), incolla codice e password e preme
+   Sblocca → «Sei entrato in "…"», la bozza compare, e **vede la strofa del
+   capo**.
 4. L'ospite prende il blocco libero, scrive, e genera un codice a sua volta.
 5. Il capo incolla quel codice → «N blocchi aggiornati, 1 autori aggiunti», e
    **legge la strofa dell'ospite**.
@@ -79,6 +94,22 @@ anche "Scarica / Installa App" nella barra laterale.
 
 Se uno solo di questi sette non si comporta così, non è un dettaglio: fermati e
 dillo, non aggiustare a naso.
+
+**Il passo 7 puo' rispondere «nessuna novità rispetto alla tua copia»**, ed e'
+giusto: al passo 5 quel codice era gia' stato unito, quindi non porta piu'
+niente di nuovo. Quello che conta e' che **non** venga rifiutato come chiuso.
+
+### Due inciampi degli attrezzi, non dell'app
+
+Costano mezz'ora a chi non li sa, e li ho pagati il 22 settembre:
+
+- `locator(...).allInputValues()` **non esiste** in Playwright 1.56. I valori
+  dei campi si leggono cosi':
+  `page.locator('input[readonly], textarea[readonly]').evaluateAll(els => els.map(e => e.value))`.
+- Se `chromium.launch()` si lamenta che manca `chrome-headless-shell`, il
+  browser c'e' ma la versione non combacia: si passa il percorso a mano,
+  `executablePath: '/opt/pw-browsers/chromium-1194/chrome-linux/chrome'`
+  (adatta il numero a quello che trovi in `/opt/pw-browsers/`).
 
 ## Le cose che non si vedono, e vanno controllate lo stesso
 

@@ -85,7 +85,10 @@ export function migrateAudioSource(raw: Record<string, unknown>): AudioSource | 
     }
     if (existing.kind === 'remote') {
       const url = asExternalUrl(existing.url);
-      return url ? { kind: 'remote', url } : undefined;
+      // Un indirizzo rifiutato non fa sparire la traccia in silenzio: diventa
+      // `unavailable`, esattamente come un blob: morto, cosi' l'app dice
+      // "ricaricalo" invece di far svanire l'audio senza una parola.
+      return url ? { kind: 'remote', url } : { kind: 'unavailable', name: asString(existing.name) || undefined };
     }
     if (existing.kind === 'unavailable') {
       return { kind: 'unavailable', name: asString(existing.name) || undefined };
@@ -97,7 +100,7 @@ export function migrateAudioSource(raw: Record<string, unknown>): AudioSource | 
   if (!legacyPath) return undefined;
   if (legacyPath.startsWith('blob:')) return { kind: 'unavailable' };
   const url = asExternalUrl(legacyPath);
-  return url ? { kind: 'remote', url } : undefined;
+  return url ? { kind: 'remote', url } : { kind: 'unavailable' };
 }
 
 /** Una traccia è recuperabile se ha almeno un id e un titolo utilizzabili. */

@@ -190,7 +190,10 @@ describe('limiti su ciò che arriva da fuori', () => {
 
   it('scarta un indirizzo audio con uno schema che non è http o https', () => {
     for (const url of ['javascript:alert(1)', 'file:///etc/passwd', 'data:text/html,<script>']) {
-      expect(migrateAudioSource({ audio: { kind: 'remote', url } })).toBeUndefined();
+      // Non `undefined`: la traccia resta e dice che l'audio non c'è più,
+      // invece di farlo sparire senza una parola.
+      expect(migrateAudioSource({ audio: { kind: 'remote', url, name: 'base.mp3' } }))
+        .toEqual({ kind: 'unavailable', name: 'base.mp3' });
     }
   });
 
