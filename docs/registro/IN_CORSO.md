@@ -6,4 +6,4 @@ che quel file sia occupato, e la blocca per niente.
 
 | Dal | Branch | Macchina | Su cosa | File toccati |
 |---|---|---|---|---|
-| 22 set 2026 | `claude/pensive-pasteur-rb90qd` | sessione cloud | Skill di sicurezza, hook di avvio, CI sui branch, documenti dell'ufficio | `.claude/`, `docs/`, `.github/workflows/` |
+| — | — | — | nessuno | — |
