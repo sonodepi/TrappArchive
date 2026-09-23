@@ -37,6 +37,11 @@ Il lavoro passa da **due ambienti che non condividono niente**:
 Prima di dare per scontato dove ti trovi: `pwd` e `git remote -v`. Se il remoto
 non è `sonodepi/TrappArchive`, sei nel posto sbagliato.
 
+**Per aprire una sessione locale da zero**, il passaggio di consegne completo —
+dove cercare il clone, cosa mettere al sicuro prima di toccare qualcosa, su
+quale branch si lavora — è la **sezione 0 di `docs/PROMPT_AGENTE_LOCALE.md`**,
+già pronta da incollare.
+
 ## Cosa c'è su `main` adesso
 
 - **Editor del testo, uno solo.** Il testo di una canzone è una stringa sola:
@@ -147,7 +152,7 @@ Nell'ordine:
 | `CLAUDE.md` | Le regole, incluso cosa fare **prima** di scrivere codice |
 | `docs/REGISTRO_SESSIONI.md` | Chi ha fatto cosa, su quale branch |
 | `docs/AUDIT.md` | L'ultimo controllo completo e i difetti ancora aperti |
-| `docs/PROMPT_AGENTE_LOCALE.md` | Prompt pronti per lavorare da un terminale locale, e il verdetto sui repository controllati |
+| `docs/PROMPT_AGENTE_LOCALE.md` | **§0 = il passaggio di consegne da incollare** in una sessione locale; poi lavori specifici e il verdetto sui repository controllati |
 | `docs/UFFICIO_AGENTI.md` | Far lavorare più agenti insieme (Munder Difflin): le scrivanie, le loro skill, le regole |
 | `docs/registro/` | Una sessione per file, e `IN_CORSO.md` con chi lavora adesso |
 | `docs/storico/` | Documenti superati. Raccontano il passato, non danno istruzioni |

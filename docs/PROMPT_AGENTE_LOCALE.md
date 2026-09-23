@@ -3,7 +3,102 @@
 Questo file serve a far girare audit e lavori **sul PC**, dentro la cartella del
 progetto, invece che da una sessione cloud che il PC non lo vede.
 
-## 0. Prima di tutto: sei nel posto giusto?
+**Se apri una sessione locale adesso, incolla la sezione 0.** È il passaggio di
+consegne completo: dice dove cercare il clone, cosa mettere al sicuro prima di
+toccare qualunque cosa, su quale branch si lavora e come si chiude. Il resto del
+documento sono lavori specifici, da usare dopo.
+
+---
+
+## 0. Il passaggio di consegne — da incollare per primo
+
+Scritto il 23 settembre 2026 da una sessione cloud, che **il PC non lo vede**:
+per questo il prompt fa *trovare* le cose invece di dare per scontato dove
+stanno. Aggiornalo quando cambia il branch di lavoro.
+
+```
+Sei Claude Code sul PC di Depi (Debian, utente depi). Parti da /home/depi, che NON è
+il repository. Lavori in italiano.
+
+1. TROVA IL CLONE VERO E LE COPIE MORTE. Non spostare niente.
+
+find ~ -maxdepth 5 -name .git -not -path '*/node_modules/*' 2>/dev/null | while read g; do
+  d=$(dirname "$g"); printf '%s → %s\n' "$d" "$(git -C "$d" remote get-url origin 2>/dev/null || echo '(nessun remoto)')"
+done
+find ~ -maxdepth 5 -type d -iname '*trapparchive*' -not -path '*/node_modules/*' -not -path '*/.*/*' 2>/dev/null | while read d; do
+  git -C "$d" rev-parse --git-dir >/dev/null 2>&1 && continue
+  { [ -e "$d/package.json" ] || [ -d "$d/src" ]; } || continue
+  echo "COPIA SCIOLTA (non è git, ma contiene il progetto): $d"
+done
+
+Quella col remoto sonodepi/TrappArchive è buona. Le «copie sciolte» sono il pericolo.
+Dimmi cosa hai trovato PRIMA di toccare qualsiasi cosa: se i cloni sono due, fermati.
+
+2. PRIMA DI TUTTO: METTI AL SICURO CIÒ CHE NON È IN GIT.
+In una copia sciolta c'è la Feature 3 «da registrare»: status?: 'da-registrare' |
+'registrata' in src/types.ts, più modifiche a TrackEditor.tsx e Library.tsx. Non
+esiste su nessun branch né su nessun remoto. Se quella cartella sparisce, sparisce il
+lavoro. Confronta quei tre file col clone vero, portami SOLO le differenze di quella
+funzione, proponi un commit. Se qualcosa non combacia più, fermati e dimmelo.
+
+3. FAI ATTERRARE IL CODICE.
+cd <il clone trovato>
+git status                  # se sporco: git stash push -u -m "roba mia"
+git fetch origin
+git checkout claude/pensive-pasteur-rb90qd
+git pull --ff-only origin claude/pensive-pasteur-rb90qd
+npm install                 # su questa macchina bun NON c'è
+command -v code >/dev/null && code . || echo "apri VS Code a mano su questa cartella"
+
+4. LEGGI LA MEMORIA DEL PROGETTO. Esiste, è vera, è stata scritta ieri.
+All'apertura l'hook .claude/hooks/session-start.sh ti ha già stampato branch, chi
+lavora su cosa, e l'avviso se sei indietro. Se non è comparso, fallo girare a mano.
+Poi: CLAUDE.md · docs/STATO_E_PROSSIMO_PASSO.md · docs/AUDIT.md (§5 = punti aperti) ·
+docs/registro/2026-09-22-pensive-pasteur-rb90qd.md · docs/UFFICIO_AGENTI.md
+
+5. GUARDA CHE SKILL HAI. Col pull ne arrivano quattro: verifica-dal-vivo,
+condivisione-bozze, scrittura, security-audit. TU vedi anche quelle installate sul PC,
+che la sessione cloud non vede: controlla ls ~/.claude/skills/ e /plugin, e dimmi cosa
+c'è. Regola: dove una skill del catalogo e una del progetto si sovrappongono, VINCE
+QUELLA DEL PROGETTO — le nostre hanno i selettori veri e i difetti già presi.
+
+6. IL GOL: MIGLIORARE L'APP INSIEME A ME.
+Non una lista di compiti. Avvia npm run dev, apri l'app a 1050 px (è la larghezza a
+cui lavoro, mezzo schermo), fammela vedere, chiedimi cosa dà fastidio. Poi una cosa
+per volta: misuri prima, sistemi, misuri dopo, e mi dai i numeri.
+Dopo OGNI modifica all'interfaccia:
+node .claude/skills/verifica-dal-vivo/controlla-schermate.mjs  → deve dire «nessun problema»
+
+REGOLE NON NEGOZIABILI
+- Branch claude/pensive-pasteur-rb90qd. Un commit per argomento, revertibile da solo.
+  Messaggio: cosa cambia per chi usa l'app; poi il difetto CON I NUMERI, la causa,
+  cosa hai verificato. Guarda git log e la skill scrittura: il tono è quello.
+- Prima di ogni commit: npm run lint, npm test (146 devono passare), npm run build, e
+  la cosa toccata RIPROVATA DAL VIVO. Qui i test verdi sono già passati mentre
+  qualcosa era rotto.
+- Tocchi share.ts / collab.ts / Bozze → skill condivisione-bozze, i sette passi.
+- Tocchi ciò che entra da fuori → skill security-audit, e prima il suo
+  PROFILO-TRAPPARCHIVE.md.
+- NON PERDERE NIENTE. Se una cosa non è committata, committala prima di muoverti.
+- main lo tocchi SOLO se: lint/test/build puliti, sweep «nessun problema», CI verde
+  sull'ultimo push, niente di non committato da nessuna parte, e me l'hai detto prima.
+  Un push su main ripubblica l'app dal vivo su sonodepi.github.io/TrappArchive.
+- Chiudendo: docs/registro/AAAA-MM-GG-<branch>.md, riga nell'indice, e togli la tua
+  riga da IN_CORSO.md.
+
+SULLA MACCHINA: npm, non bun. I 5 server MCP da autenticare non servono qui, ignorali.
+```
+
+### Lo stato che gli stai consegnando
+
+| | |
+|---|---|
+| Branch di lavoro | `claude/pensive-pasteur-rb90qd` |
+| Rispetto a `main` | **7 commit avanti**: il lavoro non è pubblicato |
+| CI | verde sugli ultimi due push |
+| Test | 146 |
+
+## 0 bis. Se la ricerca del clone non torna
 
 Non dare per scontato dove sta il clone. Questo comando elenca ogni repository
 sotto la tua cartella utente con il suo remoto, e non tocca niente:
