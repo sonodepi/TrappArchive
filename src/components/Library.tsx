@@ -3,7 +3,7 @@ import { Track } from '../types';
 import { formatDuration } from '../utils';
 import { 
   Play, Disc3, ArrowDownAZ, CalendarDays, Clock, 
-  ArrowUp, ArrowDown, Pencil, Trash2, Activity, Music2, AlertTriangle 
+  ArrowUp, ArrowDown, Pencil, Trash2, Activity, Music2, AlertTriangle, Mic
 } from 'lucide-react';
 
 type SortBy = 'title' | 'date' | 'duration' | 'bpm';
@@ -22,10 +22,20 @@ export function Library({
 }) {
   const [sortBy, setSortBy] = useState<SortBy>('date');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [onlyToRecord, setOnlyToRecord] = useState(false);
   const [trackToDelete, setTrackToDelete] = useState<Track | null>(null);
 
+  // Quante tracce aspettano di essere incise: serve sia al filtro sia al conteggio.
+  const toRecordCount = useMemo(
+    () => tracks.filter(t => t.status === 'da-registrare').length,
+    [tracks],
+  );
+
   const sortedTracks = useMemo(() => {
-    return [...tracks].sort((a, b) => {
+    const base = onlyToRecord
+      ? tracks.filter(t => t.status === 'da-registrare')
+      : tracks;
+    return [...base].sort((a, b) => {
       let comparison = 0;
       if (sortBy === 'title') {
         comparison = (a.title || '').localeCompare(b.title || '');
@@ -38,7 +48,7 @@ export function Library({
       }
       return sortDir === 'asc' ? comparison : -comparison;
     });
-  }, [tracks, sortBy, sortDir]);
+  }, [tracks, sortBy, sortDir, onlyToRecord]);
 
   const confirmDelete = () => {
     if (trackToDelete && onDeleteTrack) {
@@ -62,7 +72,25 @@ export function Library({
         </div>
         
         {tracks.length > 0 && (
-          <div className="flex items-center gap-2 self-stretch sm:self-auto">
+          <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
+            {/* Filtro: mostra solo le canzoni ancora da incidere. */}
+            {toRecordCount > 0 && (
+              <button
+                type="button"
+                onClick={() => setOnlyToRecord(v => !v)}
+                aria-pressed={onlyToRecord}
+                title="Mostra solo le tracce da registrare"
+                className={`px-3 py-2.5 rounded-xl text-xs font-semibold flex items-center gap-1.5 border transition-colors min-h-[44px] shrink-0 ${
+                  onlyToRecord
+                    ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                    : 'bg-white/[0.02] text-slate-400 border-slate-900 hover:text-slate-200'
+                }`}
+              >
+                <Mic size={14} /> Da registrare
+                <span className="font-mono opacity-80">{toRecordCount}</span>
+              </button>
+            )}
+
             {/* Mobile Dropdown Menu (< 768px) */}
             <div className="md:hidden flex items-center gap-2 w-full">
               <select
@@ -174,6 +202,11 @@ export function Library({
                     {t.bpm && <span className="text-blue-400 font-semibold">{t.bpm} BPM</span>}
                     {t.key && <span>• {t.key}</span>}
                   </div>
+                  {t.status === 'da-registrare' && (
+                    <span className="inline-flex items-center gap-1 mt-1 text-[9px] font-bold uppercase tracking-wider text-amber-300 bg-amber-500/15 border border-amber-500/40 px-1.5 py-0.5 rounded">
+                      <Mic size={9} /> Da registrare
+                    </span>
+                  )}
                 </div>
 
                 {/* Right: Duration & Always-Visible Action Buttons (touch >= 44px) */}
@@ -232,6 +265,22 @@ export function Library({
                       </div>
                     </div>
                     
+                    {/* Badge stato: la canzone e' finita nel testo ma non ancora incisa.
+                        Sulla copertina sta solo l'icona: la scheda in griglia scende a
+                        149 px e il badge scritto finiva sotto i pulsanti. Le parole
+                        restano nella vista a elenco, dove lo spazio c'e'. */}
+                    {t.status === 'da-registrare' && (
+                      <div className="absolute top-2 left-2 z-10">
+                        <span
+                          title="Da registrare"
+                          aria-label="Da registrare"
+                          className="bg-amber-500/90 text-black p-1.5 rounded-md flex items-center shadow"
+                        >
+                          <Mic size={10} />
+                        </span>
+                      </div>
+                    )}
+
                     {/* Edit & Delete Actions */}
                     <div className="absolute top-2 right-2 flex items-center gap-1.5 z-10">
                       <button 

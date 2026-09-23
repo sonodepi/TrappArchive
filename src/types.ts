@@ -28,6 +28,12 @@ export interface Track {
   createdAt: number; // For sorting by date
   bpm?: number;
   key?: string;
+  /**
+   * Fase della canzone in Libreria. Assente = non marcata: e' il caso delle
+   * tracce gia' salvate prima di questo campo, che restano valide.
+   * 'da-registrare': testo pronto, manca l'incisione. 'registrata': incisa.
+   */
+  status?: 'da-registrare' | 'registrata';
 }
 
 export interface Album {

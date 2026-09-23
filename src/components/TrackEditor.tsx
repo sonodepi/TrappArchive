@@ -3,7 +3,7 @@ import { Track, DraftProject } from '../types';
 import {
   Save, Folder, Plus, Minus, Trash2,
   ExternalLink, Music2, RefreshCw, CheckCircle2,
-  Loader2, Gauge, StopCircle, AlertTriangle,
+  Loader2, Gauge, StopCircle, AlertTriangle, Mic,
 } from 'lucide-react';
 import { getTunebatSearchUrl } from '../utils/tunebat';
 import { analyzeAudio, confidenceLabel, type AudioAnalysis } from '../audio/analyze';
@@ -88,7 +88,10 @@ export function TrackEditor({
         lyrics: initialDraft.lyrics,
         audio: initialDraft.beatUrl ? { kind: 'remote', url: initialDraft.beatUrl } : undefined,
         bpm: initialDraft.bpm || 140,
-        key: initialDraft.key || 'C Minor'
+        key: initialDraft.key || 'C Minor',
+        // Una canzone che arriva dalla bozza e' finita nel testo ma non ancora
+        // incisa: nasce "da registrare".
+        status: 'da-registrare',
       };
       setTrack(draftTrack);
     } else {
@@ -325,6 +328,38 @@ export function TrackEditor({
                   value={track.producer}
                   onChange={e => setTrack({ ...track, producer: e.target.value })}
                 />
+              </div>
+            </div>
+            {/* Stato in Libreria: una canzone finita ma non incisa e' "da registrare". */}
+            <div>
+              <label className="block text-xs font-semibold text-slate-300 uppercase tracking-wider mb-1.5">
+                Stato
+              </label>
+              <div className="flex gap-2">
+                <button
+                  type="button"
+                  onClick={() => setTrack({ ...track, status: 'da-registrare' })}
+                  aria-pressed={track.status === 'da-registrare'}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors min-h-[44px] ${
+                    track.status === 'da-registrare'
+                      ? 'bg-amber-500/15 text-amber-300 border-amber-500/40'
+                      : 'bg-black/40 text-slate-400 border-slate-900 hover:text-slate-200'
+                  }`}
+                >
+                  <Mic size={14} /> Da registrare
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setTrack({ ...track, status: 'registrata' })}
+                  aria-pressed={track.status === 'registrata'}
+                  className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2.5 rounded-xl text-xs font-semibold border transition-colors min-h-[44px] ${
+                    track.status === 'registrata'
+                      ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/40'
+                      : 'bg-black/40 text-slate-400 border-slate-900 hover:text-slate-200'
+                  }`}
+                >
+                  <CheckCircle2 size={14} /> Registrata
+                </button>
               </div>
             </div>
           </div>
