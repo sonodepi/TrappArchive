@@ -12,91 +12,133 @@ documento sono lavori specifici, da usare dopo.
 
 ## 0. Il passaggio di consegne — da incollare per primo
 
-Scritto il 23 settembre 2026 da una sessione cloud, che **il PC non lo vede**:
-per questo il prompt fa *trovare* le cose invece di dare per scontato dove
-stanno. Aggiornalo quando cambia il branch di lavoro.
+### La mappa del disco, al 25 settembre 2026
 
-```
-Sei Claude Code sul PC di Depi (Debian, utente depi). Parti da /home/depi, che NON è
-il repository. Lavori in italiano.
+Un `find /` sul PC ha trovato **otto** cose che si chiamano TrappArchive. Sono
+scritte qui perché nessuno le ricerchi a tentoni, e perché due stanno nel
+cestino:
 
-1. TROVA IL CLONE VERO E LE COPIE MORTE. Non spostare niente.
-
-find ~ -maxdepth 5 -name .git -not -path '*/node_modules/*' 2>/dev/null | while read g; do
-  d=$(dirname "$g"); printf '%s → %s\n' "$d" "$(git -C "$d" remote get-url origin 2>/dev/null || echo '(nessun remoto)')"
-done
-find ~ -maxdepth 5 -type d -iname '*trapparchive*' -not -path '*/node_modules/*' -not -path '*/.*/*' 2>/dev/null | while read d; do
-  git -C "$d" rev-parse --git-dir >/dev/null 2>&1 && continue
-  { [ -e "$d/package.json" ] || [ -d "$d/src" ]; } || continue
-  echo "COPIA SCIOLTA (non è git, ma contiene il progetto): $d"
-done
-
-Quella col remoto sonodepi/TrappArchive è buona. Le «copie sciolte» sono il pericolo.
-Dimmi cosa hai trovato PRIMA di toccare qualsiasi cosa: se i cloni sono due, fermati.
-
-2. PRIMA DI TUTTO: METTI AL SICURO CIÒ CHE NON È IN GIT.
-In una copia sciolta c'è la Feature 3 «da registrare»: status?: 'da-registrare' |
-'registrata' in src/types.ts, più modifiche a TrackEditor.tsx e Library.tsx. Non
-esiste su nessun branch né su nessun remoto. Se quella cartella sparisce, sparisce il
-lavoro. Confronta quei tre file col clone vero, portami SOLO le differenze di quella
-funzione, proponi un commit. Se qualcosa non combacia più, fermati e dimmelo.
-
-3. FAI ATTERRARE IL CODICE.
-cd <il clone trovato>
-git status                  # se sporco: git stash push -u -m "roba mia"
-git fetch origin
-git checkout claude/pensive-pasteur-rb90qd
-git pull --ff-only origin claude/pensive-pasteur-rb90qd
-npm install                 # su questa macchina bun NON c'è
-command -v code >/dev/null && code . || echo "apri VS Code a mano su questa cartella"
-
-4. LEGGI LA MEMORIA DEL PROGETTO. Esiste, è vera, è stata scritta ieri.
-All'apertura l'hook .claude/hooks/session-start.sh ti ha già stampato branch, chi
-lavora su cosa, e l'avviso se sei indietro. Se non è comparso, fallo girare a mano.
-Poi: CLAUDE.md · docs/STATO_E_PROSSIMO_PASSO.md · docs/AUDIT.md (§5 = punti aperti) ·
-docs/registro/2026-09-22-pensive-pasteur-rb90qd.md · docs/UFFICIO_AGENTI.md
-
-5. GUARDA CHE SKILL HAI. Col pull ne arrivano quattro: verifica-dal-vivo,
-condivisione-bozze, scrittura, security-audit. TU vedi anche quelle installate sul PC,
-che la sessione cloud non vede: controlla ls ~/.claude/skills/ e /plugin, e dimmi cosa
-c'è. Regola: dove una skill del catalogo e una del progetto si sovrappongono, VINCE
-QUELLA DEL PROGETTO — le nostre hanno i selettori veri e i difetti già presi.
-
-6. IL GOL: MIGLIORARE L'APP INSIEME A ME.
-Non una lista di compiti. Avvia npm run dev, apri l'app a 1050 px (è la larghezza a
-cui lavoro, mezzo schermo), fammela vedere, chiedimi cosa dà fastidio. Poi una cosa
-per volta: misuri prima, sistemi, misuri dopo, e mi dai i numeri.
-Dopo OGNI modifica all'interfaccia:
-node .claude/skills/verifica-dal-vivo/controlla-schermate.mjs  → deve dire «nessun problema»
-
-REGOLE NON NEGOZIABILI
-- Branch claude/pensive-pasteur-rb90qd. Un commit per argomento, revertibile da solo.
-  Messaggio: cosa cambia per chi usa l'app; poi il difetto CON I NUMERI, la causa,
-  cosa hai verificato. Guarda git log e la skill scrittura: il tono è quello.
-- Prima di ogni commit: npm run lint, npm test (146 devono passare), npm run build, e
-  la cosa toccata RIPROVATA DAL VIVO. Qui i test verdi sono già passati mentre
-  qualcosa era rotto.
-- Tocchi share.ts / collab.ts / Bozze → skill condivisione-bozze, i sette passi.
-- Tocchi ciò che entra da fuori → skill security-audit, e prima il suo
-  PROFILO-TRAPPARCHIVE.md.
-- NON PERDERE NIENTE. Se una cosa non è committata, committala prima di muoverti.
-- main lo tocchi SOLO se: lint/test/build puliti, sweep «nessun problema», CI verde
-  sull'ultimo push, niente di non committato da nessuna parte, e me l'hai detto prima.
-  Un push su main ripubblica l'app dal vivo su sonodepi.github.io/TrappArchive.
-- Chiudendo: docs/registro/AAAA-MM-GG-<branch>.md, riga nell'indice, e togli la tua
-  riga da IN_CORSO.md.
-
-SULLA MACCHINA: npm, non bun. I 5 server MCP da autenticare non servono qui, ignorali.
-```
-
-### Lo stato che gli stai consegnando
-
-| | |
+| Percorso | Cos'è |
 |---|---|
-| Branch di lavoro | `claude/pensive-pasteur-rb90qd` |
-| Rispetto a `main` | **7 commit avanti**: il lavoro non è pubblicato |
-| CI | verde sugli ultimi due push |
-| Test | 146 |
+| `/home/depi/TrappArchive` | candidato clone |
+| `/home/depi/Scrivania/code/progetti/TrappArchive` | **secondo** candidato clone |
+| `…/progetti/TrappArchive/TrappArchive-claude-trapparchive-app-review-x38gkz` | la copia che secondo i documenti contiene la Feature 3 |
+| `/home/depi/Scaricati/TrappArchive-claude-…-x38gkz` | un'altra copia della stessa |
+| `/home/depi/trapparchive-lavoro-non-in-git-2026-09-24.tar.gz` | **archivio del lavoro fuori da git**, fatto il 24 |
+| `/home/depi/briefing/trapparchive` | un briefing su questo progetto |
+| `~/.local/share/Trash/files/TrappArchive-claude-…-x38gkz.zip` | **nel cestino** |
+| `~/.local/share/Trash/files/TrappArchive-main.zip` | **nel cestino** |
+
+Due cose da tenere a mente: **quale sia il clone vero non è deciso** — sono due
+candidati, e va guardato il remoto, non il nome — e **il cestino non si svuota**
+finché non si sa cosa c'è dentro quegli zip.
+
+### Il prompt
+
+```
+Sei Claude Code sul PC di Depi (Debian 13). Lavori in italiano.
+
+whoami → se sei root, FERMATI. Devi essere depi: git e npm lanciati da root
+dentro /home/depi lasciano file di proprietà di root, e poi depi non ci lavora più.
+
+IL LAVORO
+Il codice buono sta su GitHub: branch claude/pensive-pasteur-rb90qd, 10 commit
+avanti a main, CI verde. In locale c'è del lavoro MAI COMMITTATO — lo stato
+«da registrare» (status?: 'da-registrare' | 'registrata' in src/types.ts, più
+TrackEditor.tsx e Library.tsx) — che non esiste su nessun branch né su nessun
+remoto. Devi trovarlo, salvarlo, far atterrare il branch, e pubblicare se è verde.
+
+REGOLE
+- Non cancellare, non svuotare il cestino, non spostare cartelle finché non lo
+  dico io: due copie stanno nel cestino e potrebbero essere le ultime.
+- Niente push --force, niente riscrittura della storia.
+- Se due cartelle sembrano entrambe il clone vero: fermati e chiedi.
+- Prima di ogni comando che modifica qualcosa, di' cosa fai e perché.
+
+1 · MAPPA — sola lettura
+
+for d in /home/depi/TrappArchive \
+         /home/depi/briefing/trapparchive \
+         /home/depi/Scaricati/TrappArchive-claude-trapparchive-app-review-x38gkz \
+         /home/depi/Scrivania/code/progetti/TrappArchive \
+         /home/depi/Scrivania/code/progetti/TrappArchive/TrappArchive-claude-trapparchive-app-review-x38gkz; do
+  [ -e "$d" ] || continue
+  echo "=== $d   ($(stat -c %y "$d" | cut -d' ' -f1))"
+  if git -C "$d" rev-parse --git-dir >/dev/null 2>&1; then
+    echo "    remoto: $(git -C "$d" remote get-url origin 2>/dev/null || echo NESSUNO)"
+    echo "    branch: $(git -C "$d" branch --show-current)  |  $(git -C "$d" status --porcelain | wc -l) file non committati"
+    echo "    ultimo: $(git -C "$d" log --oneline -1 2>/dev/null)"
+  else
+    echo "    NON e' un repository git"
+  fi
+  grep -rq 'da-registrare' "$d/src" 2>/dev/null && echo "    >>> CONTIENE LA FEATURE 3"
+done
+echo; echo "=== archivio del 24 settembre"
+tar tzf /home/depi/trapparchive-lavoro-non-in-git-2026-09-24.tar.gz | head -40
+echo; echo "=== cestino — guardare e basta"
+ls -la /home/depi/.local/share/Trash/files/ | grep -i trapp
+
+2 · FERMATI E RIFERISCI
+Una tabella con: qual è il clone vero (se più d'uno, quali — non scegliere tu);
+dove sta la Feature 3 e in quante copie; cosa c'è nell'archivio del 24.
+E leggi /home/depi/briefing/trapparchive: è un briefing su questo progetto.
+Dimmi cosa contiene e se vale la pena portarlo nel repository.
+Non installare e non modificare niente prima che io risponda.
+
+3 · SALVARE LA FEATURE 3
+Estrai l'archivio in /tmp, mai sopra a qualcosa che esiste già.
+Confronta le copie che contengono `da-registrare`: se differiscono, dimmi come.
+Nel clone vero, su claude/pensive-pasteur-rb90qd, porta SOLO le differenze di
+quella funzione — non quello che nel frattempo è cambiato a monte.
+npm run lint · npm test (146 devono passare) · npm run build
+Commit che dice da dove viene quel codice e cosa hai verificato.
+Se non combacia col codice di adesso: fermati, non forzare.
+
+4 · BRANCH E PROVA
+git status                 # se sporco: git stash push -u -m "roba mia"
+git fetch origin && git checkout claude/pensive-pasteur-rb90qd
+git pull --ff-only origin claude/pensive-pasteur-rb90qd
+npm install                # bun NON c'è su questa macchina
+npm run dev → http://localhost:3000, ricarica con Ctrl-Shift-R (è una PWA)
+Leggi: CLAUDE.md · docs/AUDIT.md §5 · docs/registro/2026-09-23-*.md
+Dimmi anche cosa c'è in ls ~/.claude/skills/ — dal cloud non si vede.
+
+5 · PUBBLICARE — solo se tutte e cinque sono vere
+  a) Feature 3 committata e pushata sul branch
+  b) npm run lint, npm test (146), npm run build puliti
+  c) nove larghezze pulite:
+       npm i -D playwright && npx playwright install chromium
+       npm run build && npx vite preview --port 4173 &
+       node .claude/skills/verifica-dal-vivo/controlla-schermate.mjs
+     deve dire «nessun problema». La Feature 3 tocca TrackEditor.tsx e
+     Library.tsx, che sono interfaccia: qui questo controllo serve davvero.
+  d) CI verde sull'ultimo push del branch
+  e) niente di non committato da nessuna parte
+Allora:
+  git checkout main && git merge --ff-only claude/pensive-pasteur-rb90qd
+  git push -u origin main
+Il push su main ripubblica l'app su sonodepi.github.io/TrappArchive.
+Se anche una sola non torna: NON pubblicare. Dimmi quale e perché.
+
+6 · CHIUDERE
+docs/registro/AAAA-MM-GG-pensive-pasteur-rb90qd.md: cosa hai fatto, cosa hai
+verificato e come, cosa resta aperto. Riga nell'indice docs/REGISTRO_SESSIONI.md.
+Togli la tua riga da docs/registro/IN_CORSO.md.
+Poi proponimi cosa si può cancellare — copie doppie, zip nel cestino, archivio —
+una riga per voce col motivo. Non cancellare niente da solo.
+```
+
+### Perché ci sono quei tre muri
+
+**`whoami`**: quel terminale era aperto come `root`. Un `npm install` o un `git`
+lanciati da root dentro `/home/depi` lasciano file che poi `depi` non può più
+toccare, e si perde una serata a dare `chown`.
+
+**Lo stop in fase 2**: con due candidati clone, un agente che ne sceglie uno da
+solo può committare nel posto sbagliato — o peggio, cancellare quello giusto.
+
+**Le cinque condizioni in fase 5**: la Feature 3 tocca `TrackEditor.tsx` e
+`Library.tsx`, che sono interfaccia. Le nove larghezze lì non sono una formalità.
 
 ## 0 bis. Se la ricerca del clone non torna
 

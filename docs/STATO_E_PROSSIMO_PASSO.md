@@ -20,7 +20,7 @@ Il lavoro passa da **due ambienti che non condividono niente**:
    `/home/user/TrappArchive`, `bun` disponibile, push diretto su GitHub. **Non
    vede il PC dell'utente.**
 2. **Sessione locale** (VS Code / terminale): il clone vero sul PC. **Il suo
-   percorso non è scontato** — è già capitato di cercarlo dove non era, e di
+   percorso non è scontato, e al 25 settembre i candidati sono due** — è già capitato di cercarlo dove non era, e di
    finire dentro un `git init` accidentale in una cartella superiore. Si trova
    così, senza toccare niente:
 
@@ -92,6 +92,22 @@ cartella viene cancellata o sovrascritta, sparisce senza lasciare traccia.
 **Prima di qualunque pulizia**: copiare da lì `src/types.ts`,
 `src/components/TrackEditor.tsx` e `src/components/Library.tsx`, portarli nel
 clone vero e committarli.
+
+**Aggiornamento del 25 settembre, da un `find` vero sul PC.** La situazione è
+più intricata di così, e in meglio:
+
+- esiste un **archivio `~/trapparchive-lavoro-non-in-git-2026-09-24.tar.gz`**:
+  qualcuno il 24 ha già messo da parte il lavoro fuori da git;
+- di quella cartella ci sono **due copie**, una in `~/Scaricati` e una dentro
+  `~/Scrivania/code/progetti/TrappArchive/`;
+- nel cestino ci sono **due `.zip`**, di cui uno con lo stesso nome. Il cestino
+  non si svuota finché non si sa cosa contengono;
+- i **candidati clone sono due**: `~/TrappArchive` e
+  `~/Scrivania/code/progetti/TrappArchive`. Quale sia quello vero si decide dal
+  **remoto**, non dal nome, e nessuno deve indovinarlo.
+
+La mappa completa e il prompt per risolverla stanno nella **sezione 0 di
+`docs/PROMPT_AGENTE_LOCALE.md`**.
 
 ### 2. La sincronizzazione cloud non è mai stata provata sul serio
 

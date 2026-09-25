@@ -19,6 +19,7 @@ avvio stampa da solo a ogni sessione.
 
 | Data | Branch | In due righe |
 |---|---|---|
+| [23-25 set 2026](registro/2026-09-23-pensive-pasteur-rb90qd.md) | `claude/pensive-pasteur-rb90qd` | Il passaggio di consegne verso il PC messo nel repository, più il controllo da trenta secondi per la Feature 3. Nove larghezze pulite: il branch è pronto, `main` non toccato |
 | [24 set 2026](registro/2026-09-24-pensive-pasteur-rb90qd.md) | `claude/pensive-pasteur-rb90qd` | Recuperata dalla cartella non versionata la funzione «da registrare» e portata sul branch; il badge sulla copertina si sovrapponeva ai comandi di 13 px a 1050 px, corretto; la passata automatica non poteva vederlo perché gira su libreria vuota |
 | [22 set 2026](registro/2026-09-22-pensive-pasteur-rb90qd.md) | `claude/pensive-pasteur-rb90qd` | Sette repository controllati; hook di avvio che stampa lo stato dei branch a ogni sessione; skill di sicurezza di Cloudflare e passata mirata (3 difetti riparati, 2 aperti); CI su branch e pull request |
 | [16-17 set 2026](registro/2026-09-16-pensive-pasteur-rb90qd.md) | `claude/pensive-pasteur-rb90qd` → `main` | Editor del testo riscritto, Gemini rimosso, condivisione cifrata, cancellazioni che non risorgono, i documenti del progetto e le prime tre skill |
