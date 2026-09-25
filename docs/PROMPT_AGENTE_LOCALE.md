@@ -12,6 +12,43 @@ documento sono lavori specifici, da usare dopo.
 
 ## 0. Il passaggio di consegne — da incollare per primo
 
+### Prima di tutto: se hai trenta secondi e non vuoi aprire un agente
+
+La cosa più urgente del progetto non richiede Claude. È guardare se la cartella
+con la **Feature 3 «da registrare»** esiste ancora: vive in una copia non-git
+sul PC e **non esiste su nessun branch né su nessun remoto**. Se quella cartella
+viene cancellata, quel lavoro sparisce e non c'è modo di riaverlo.
+
+Incolla questo in un terminale qualsiasi. Sono `find` e `grep`: legge e basta,
+non tocca niente.
+
+```bash
+find ~ -maxdepth 5 -type d -iname '*trapparchive*' -not -path '*/node_modules/*' -not -path '*/.*/*' 2>/dev/null | while read d; do
+  git -C "$d" rev-parse --git-dir >/dev/null 2>&1 && continue
+  { [ -e "$d/package.json" ] || [ -d "$d/src" ]; } || continue
+  if grep -q 'da-registrare' "$d/src/types.ts" 2>/dev/null; then
+    echo "TROVATA, ed e' quella giusta: $d"
+  else
+    echo "copia sciolta (ma senza la Feature 3): $d"
+  fi
+done
+echo "--- fine ricerca ---"
+```
+
+- **Stampa `TROVATA, ed e' quella giusta: <percorso>`** → c'è ancora. Non è
+  urgente oggi: la salva l'agente al passo 2 del prompt qui sotto.
+- **Stampa solo `--- fine ricerca ---`** → quella cartella non c'è più, e quel
+  lavoro è perso. Va scritto in `docs/AUDIT.md` e in
+  `docs/STATO_E_PROSSIMO_PASSO.md`, che finché non lo si scrive continuano a
+  prometterlo come recuperabile.
+
+Il clone vero non compare in questo elenco, ed è giusto così: cerca solo le
+copie che **non** sono repository git. Salta anche le cartelle nascoste, perché
+`~/.cache/claude-cli-nodejs/-home-depi-TrappArchive` e
+`~/.claude/projects/...` portano il nome del progetto senza esserne una copia.
+
+### Il prompt vero e proprio
+
 Scritto il 23 settembre 2026 da una sessione cloud, che **il PC non lo vede**:
 per questo il prompt fa *trovare* le cose invece di dare per scontato dove
 stanno. Aggiornalo quando cambia il branch di lavoro.
