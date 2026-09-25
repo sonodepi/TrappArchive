@@ -76,38 +76,14 @@ dell'utente, dall'editor unico descritto sopra. Quel branch resta come archivio:
 
 ## ⚠️ Cose che vanno sapute, e che non sono nel repository
 
-### 1. La "Feature 3 — da registrare" non è committata da nessuna parte
+### 1. La "Feature 3 — da registrare": salvata (26 settembre)
 
-Una sessione locale ha implementato lo stato `status?: 'da-registrare' |
-'registrata'` (in `types.ts`, più modifiche a `TrackEditor.tsx` e `Library.tsx`)
-dentro una **copia sciolta che non è un repository git**:
-
-```
-~/Scrivania/code/progetti/TrappArchive/TrappArchive-claude-trapparchive-app-review-x38gkz
-```
-
-Quel lavoro **non esiste su nessun branch e su nessun remoto**. Se quella
-cartella viene cancellata o sovrascritta, sparisce senza lasciare traccia.
-
-**Prima di qualunque pulizia**: copiare da lì `src/types.ts`,
-`src/components/TrackEditor.tsx` e `src/components/Library.tsx`, portarli nel
-clone vero e committarli.
-
-**Aggiornamento del 25 settembre, da un `find` vero sul PC.** La situazione è
-più intricata di così, e in meglio:
-
-- esiste un **archivio `~/trapparchive-lavoro-non-in-git-2026-09-24.tar.gz`**:
-  qualcuno il 24 ha già messo da parte il lavoro fuori da git;
-- di quella cartella ci sono **due copie**, una in `~/Scaricati` e una dentro
-  `~/Scrivania/code/progetti/TrappArchive/`;
-- nel cestino ci sono **due `.zip`**, di cui uno con lo stesso nome. Il cestino
-  non si svuota finché non si sa cosa contengono;
-- i **candidati clone sono due**: `~/TrappArchive` e
-  `~/Scrivania/code/progetti/TrappArchive`. Quale sia quello vero si decide dal
-  **remoto**, non dal nome, e nessuno deve indovinarlo.
-
-La mappa completa e il prompt per risolverla stanno nella **sezione 0 di
-`docs/PROMPT_AGENTE_LOCALE.md`**.
+Era committata solo nel clone del PC (`dc1b666`, 24/09) e mai pushata, mentre
+sul remoto il branch andava avanti con altri documenti: i due lati si erano
+divisi dopo `f502527`. Il 26/09 sono stati riuniti con un merge sul branch
+**`trapparchivebranch`**, pushato. Le copie sciolte (Scrivania, Scaricati,
+archivio del 24, zip nel cestino) non contengono più niente che non sia in
+git: dettagli e confronti in `docs/registro/2026-09-26-trapparchivebranch.md`.
 
 ### 2. La sincronizzazione cloud non è mai stata provata sul serio
 
@@ -145,7 +121,7 @@ Pages senza server. Ma due cose sono vere:
 
 Nell'ordine:
 
-1. **Salvare la Feature 3** dalla copia sciolta (rischio di perdita reale).
+1. **Portare `trapparchivebranch` su `main`** (fast-forward), che la pubblica.
 2. **Portare `vitest` a 4.1.11 o oltre**, da solo, con il suo commit:
    [GHSA-82fw-gwwq-j7x9](https://github.com/advisories/GHSA-82fw-gwwq-j7x9).
    È un cambio di versione maggiore sotto 146 test, quindi non va infilato in

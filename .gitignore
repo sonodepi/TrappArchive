@@ -16,3 +16,6 @@ coverage/
 
 # Verifiche e schermate di lavoro: roba di passaggio, non del progetto
 .tmp/
+
+# npm su questo PC lo genera, ma il progetto usa bun.lock (CI con --frozen-lockfile)
+package-lock.json
