@@ -78,6 +78,19 @@ describe('parseTrack', () => {
     const track = parseTrack({ id: 'a1', audioFilePath: 'blob:http://x/1' });
     expect(track!.audio).toEqual({ kind: 'unavailable' });
   });
+
+  it('conserva il segno "da registrare" al riavvio, invece di perderlo', () => {
+    // Bug: parseTrack non copiava `status`, quindi il segno spariva ogni
+    // volta che il catalogo veniva riletto da localStorage.
+    const track = parseTrack({ id: 'a1', status: 'da-registrare' });
+    expect(track!.status).toBe('da-registrare');
+  });
+
+  it('conserva anche "registrata", e scarta un valore non valido', () => {
+    expect(parseTrack({ id: 'a1', status: 'registrata' })!.status).toBe('registrata');
+    expect(parseTrack({ id: 'a1', status: 'boh' })!.status).toBeUndefined();
+    expect(parseTrack({ id: 'a1' })!.status).toBeUndefined();
+  });
 });
 
 describe('parseList', () => {

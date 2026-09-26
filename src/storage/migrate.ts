@@ -123,6 +123,10 @@ export function parseTrack(raw: unknown): Track | null {
     createdAt: asNumber(raw.createdAt, Date.now()),
     bpm: typeof raw.bpm === 'number' ? raw.bpm : undefined,
     key: typeof raw.key === 'string' ? raw.key : undefined,
+    // Senza questo campo il segno "da registrare"/"registrata" spariva a ogni
+    // ricarico: parseTrack passa per ogni lettura del catalogo (loadCatalog,
+    // import di un backup) e ricostruiva la traccia senza copiarlo.
+    status: raw.status === 'da-registrare' || raw.status === 'registrata' ? raw.status : undefined,
   };
 }
 

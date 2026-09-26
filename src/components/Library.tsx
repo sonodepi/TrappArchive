@@ -9,6 +9,19 @@ import {
 type SortBy = 'title' | 'date' | 'duration' | 'bpm';
 type SortDir = 'asc' | 'desc';
 
+/**
+ * Il pulsante del filtro "Da registrare" deve restare visibile finché il
+ * filtro è acceso, anche se nel frattempo il conteggio scende a zero (es.
+ * elimino l'ultima traccia da registrare mentre il filtro è attivo).
+ *
+ * Bug: il pulsante compariva solo con `toRecordCount > 0`, quindi spariva
+ * proprio mentre l'utente ne aveva più bisogno — il filtro restava acceso,
+ * la lista vuota, e non c'era modo di spegnerlo dall'interfaccia.
+ */
+export function shouldShowRecordFilterButton(toRecordCount: number, onlyToRecord: boolean): boolean {
+  return toRecordCount > 0 || onlyToRecord;
+}
+
 export function Library({ 
   tracks, 
   onPlayTrack,
@@ -74,7 +87,7 @@ export function Library({
         {tracks.length > 0 && (
           <div className="flex flex-wrap items-center gap-2 self-stretch sm:self-auto">
             {/* Filtro: mostra solo le canzoni ancora da incidere. */}
-            {toRecordCount > 0 && (
+            {shouldShowRecordFilterButton(toRecordCount, onlyToRecord) && (
               <button
                 type="button"
                 onClick={() => setOnlyToRecord(v => !v)}
