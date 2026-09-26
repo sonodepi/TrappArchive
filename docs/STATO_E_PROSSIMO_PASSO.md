@@ -121,7 +121,9 @@ Pages senza server. Ma due cose sono vere:
 
 Nell'ordine:
 
-1. **Portare `trapparchivebranch` su `main`** (fast-forward), che la pubblica.
+1. **Riportare su `trapparchivebranch` i 3 bug di `docs/BUG-2026-09-24.md`**:
+   li ha l'ufficio di agenti (Jim), su un branch suo. La Feature 3 è su `main`
+   e pubblicata dal 26/09.
 2. **Portare `vitest` a 4.1.11 o oltre**, da solo, con il suo commit:
    [GHSA-82fw-gwwq-j7x9](https://github.com/advisories/GHSA-82fw-gwwq-j7x9).
    È un cambio di versione maggiore sotto 146 test, quindi non va infilato in

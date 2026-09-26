@@ -64,10 +64,25 @@ Sul PC, con npm (bun non c'è):
   `-D`: con `-D` cambierebbe `package.json` e la CI, che installa con bun e
   `--frozen-lockfile`, fallirebbe.
 
+## Dopo, nella stessa sessione
+
+- CI: `trapparchivebranch` aggiunto ai trigger di `ci.yml` (`9b335b6`), e il
+  primo run automatico è verde.
+- **Pubblicato**, su decisione di depi: `main` portato su `9b335b6` con un
+  fast-forward. Il deploy su GitHub Pages è verde, e nel bundle online
+  compare `da-registrare`.
+- Pulizia, su decisione di depi. Prima di cancellare, ogni file delle copie
+  sciolte è stato confrontato con la storia git (`git hash-object` contro
+  `git rev-list --all --objects`). Non stavano in git solo i tre file della
+  Feature 3 (già portati), un `package-lock.json` vuoto, `obiettivo.md` e
+  `AUDIT_2026-09-16.md`: questi due ora sono in `docs/storico/`.
+  Poi sono stati tolti: la copia su Scrivania, il `git init` vuoto di
+  `~/Scrivania/code`, la copia in Scaricati, l'archivio del 24, i due zip nel
+  cestino, i due stash e i branch locali già contenuti in `main`.
+
 ## Cosa resta aperto
 
-- **`main` non è stato toccato.** Portarci `trapparchivebranch` (fast-forward)
-  pubblica l'app, e va deciso da depi.
-- Le copie sciolte elencate sopra non contengono più niente che non sia in
-  git. Si possono togliere quando depi lo decide.
+- I 3 bug di `docs/BUG-2026-09-24.md`: li ha l'ufficio (Jim), su un branch
+  partito da `1add5ca`.
+- I branch remoti `claude/*` sono ancora su GitHub, come archivio.
 - Il resto dei punti aperti è in `docs/STATO_E_PROSSIMO_PASSO.md`.
