@@ -37,4 +37,18 @@ describe('extractYoutubeId', () => {
     expect(extractYoutubeId('')).toBeNull();
     expect(extractYoutubeId('https://esempio.it/pagina')).toBeNull();
   });
+
+  it('T-02: si ferma all\'id e non si porta dietro un fragment con "#"', () => {
+    // Bug: il gruppo di cattura non escludeva '#', quindi un timestamp
+    // (#t=30s) restava attaccato all'id restituito.
+    expect(extractYoutubeId('https://www.youtube.com/watch?v=ABCDEFGHIJK#t=30s')).toBe('ABCDEFGHIJK');
+  });
+
+  it('T-02: rifiuta un "id" che non ha la forma di un id YouTube reale', () => {
+    // Un id vero è sempre 11 caratteri [A-Za-z0-9_-]; qualunque altra forma
+    // (troncata, o allungata da qualcosa che l'ancoraggio ha lasciato passare)
+    // non va restituita come se fosse valida.
+    expect(extractYoutubeId('https://youtu.be/corto')).toBeNull();
+    expect(extractYoutubeId('https://youtu.be/ABCDEFGHIJKLMNOP')).toBeNull();
+  });
 });

@@ -22,6 +22,27 @@ export function shouldShowRecordFilterButton(toRecordCount: number, onlyToRecord
   return toRecordCount > 0 || onlyToRecord;
 }
 
+/**
+ * Quale messaggio di "vuoto" mostrare, se ce n'è uno.
+ *
+ * Bug (T-01, review Dwight): lo stato vuoto guardava solo `tracks.length`,
+ * cioè il catalogo intero. Con il filtro "Da registrare" acceso e l'ultima
+ * traccia in quello stato appena eliminata, `tracks.length` resta > 0 (ci
+ * sono altre tracce, solo non in questo stato) ma la lista filtrata
+ * (`sortedTracks`) è vuota — e non compariva nessun messaggio, solo una
+ * sezione muta.
+ */
+export type LibraryEmptyState = 'catalogo-vuoto' | 'filtro-senza-risultati' | null;
+
+export function getLibraryEmptyState(
+  tracksLength: number,
+  sortedTracksLength: number,
+): LibraryEmptyState {
+  if (tracksLength === 0) return 'catalogo-vuoto';
+  if (sortedTracksLength === 0) return 'filtro-senza-risultati';
+  return null;
+}
+
 export function Library({ 
   tracks, 
   onPlayTrack,
@@ -62,6 +83,8 @@ export function Library({
       return sortDir === 'asc' ? comparison : -comparison;
     });
   }, [tracks, sortBy, sortDir, onlyToRecord]);
+
+  const emptyState = getLibraryEmptyState(tracks.length, sortedTracks.length);
 
   const confirmDelete = () => {
     if (trackToDelete && onDeleteTrack) {
@@ -178,13 +201,25 @@ export function Library({
       </div>
       
       {/* Empty State */}
-      {tracks.length === 0 ? (
+      {emptyState ? (
         <div className="text-slate-500 text-center py-24 border border-slate-900 bg-white/[0.02] shadow-[0_8px_30px_rgb(0,0,0,0.4)] rounded-2xl p-6">
-          <Disc3 className="w-12 h-12 mx-auto mb-4 text-slate-700" />
-          <p className="text-lg font-medium text-slate-300">La tua libreria è vuota</p>
-          <p className="text-sm mt-1 text-slate-500 max-w-sm mx-auto">
-            Aggiungi la tua prima traccia con BPM e chiave Tunebat automatici per iniziare.
-          </p>
+          {emptyState === 'catalogo-vuoto' ? (
+            <>
+              <Disc3 className="w-12 h-12 mx-auto mb-4 text-slate-700" />
+              <p className="text-lg font-medium text-slate-300">La tua libreria è vuota</p>
+              <p className="text-sm mt-1 text-slate-500 max-w-sm mx-auto">
+                Aggiungi la tua prima traccia con BPM e chiave Tunebat automatici per iniziare.
+              </p>
+            </>
+          ) : (
+            <>
+              <Mic className="w-12 h-12 mx-auto mb-4 text-slate-700" />
+              <p className="text-lg font-medium text-slate-300">Nessuna traccia da registrare</p>
+              <p className="text-sm mt-1 text-slate-500 max-w-sm mx-auto">
+                Spegni il filtro "Da registrare" per vedere tutte le tracce del catalogo.
+              </p>
+            </>
+          )}
         </div>
       ) : (
         <>
