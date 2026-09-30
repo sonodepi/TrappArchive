@@ -19,6 +19,7 @@ avvio stampa da solo a ogni sessione.
 
 | Data | Branch | In due righe |
 |---|---|---|
+| [30 set 2026](registro/2026-09-30-trapparchivebranch.md) | `trapparchivebranch` | I 2 commit di bugfix rivisti (3 bug del 24/09 + 2 residui) messi su GitHub, tolta la riga fantasma da `IN_CORSO.md`. 163 test, lint pulito; `main` non toccato |
 | [26 set 2026](registro/2026-09-26-trapparchivebranch.md) | `trapparchivebranch` | La Feature 3 era committata solo sul PC e mai pushata, mentre il remoto andava avanti: riuniti con un merge su un branch unico. Lint, 146 test, build, nove larghezze pulite; `main` non toccato |
 | [23-25 set 2026](registro/2026-09-23-pensive-pasteur-rb90qd.md) | `claude/pensive-pasteur-rb90qd` | Il passaggio di consegne verso il PC messo nel repository, più il controllo da trenta secondi per la Feature 3. Nove larghezze pulite: il branch è pronto, `main` non toccato |
 | [24 set 2026](registro/2026-09-24-pensive-pasteur-rb90qd.md) | `claude/pensive-pasteur-rb90qd` | Recuperata dalla cartella non versionata la funzione «da registrare» e portata sul branch; il badge sulla copertina si sovrapponeva ai comandi di 13 px a 1050 px, corretto; la passata automatica non poteva vederlo perché gira su libreria vuota |
